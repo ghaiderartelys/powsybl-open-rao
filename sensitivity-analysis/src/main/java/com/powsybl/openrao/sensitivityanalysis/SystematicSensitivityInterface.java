@@ -10,6 +10,7 @@ package com.powsybl.openrao.sensitivityanalysis;
 import com.powsybl.openrao.commons.OpenRaoException;
 import com.powsybl.openrao.commons.Unit;
 import com.powsybl.glsk.commons.ZonalData;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Instant;
 import com.powsybl.openrao.data.crac.api.cnec.FlowCnec;
 import com.powsybl.openrao.data.crac.api.rangeaction.RangeAction;
@@ -146,11 +147,13 @@ public final class SystematicSensitivityInterface {
      * SystematicSensitivityResult to the given network variant.
      */
     public SystematicSensitivityResult run(Network network) {
-        SystematicSensitivityResult result = runWithConfig(network);
-        if (!result.isSuccess()) {
-            BUSINESS_WARNS.warn("Sensitivity analysis failed.");
-        }
-        return result;
+        return OpenTelemetryReporter.withSpan("rao.systematicSA.run", () -> {
+            SystematicSensitivityResult result = runWithConfig(network);
+            if (!result.isSuccess()) {
+                BUSINESS_WARNS.warn("Sensitivity analysis failed.");
+            }
+            return result;
+        });
     }
 
     /**
@@ -158,12 +161,14 @@ public final class SystematicSensitivityInterface {
      * SensitivityComputationException is the computation fails.
      */
     private SystematicSensitivityResult runWithConfig(Network network) {
-        SystematicSensitivityResult tempSystematicSensitivityAnalysisResult = SystematicSensitivityAdapter
-                .runSensitivity(network, cnecSensitivityProvider, appliedRemedialActions, parameters, sensitivityProvider, outageInstant);
+        return OpenTelemetryReporter.withSpan("rao.systematicSA.runWithConfig", () -> {
+            SystematicSensitivityResult tempSystematicSensitivityAnalysisResult = SystematicSensitivityAdapter
+                    .runSensitivity(network, cnecSensitivityProvider, appliedRemedialActions, parameters, sensitivityProvider, outageInstant);
 
-        if (!tempSystematicSensitivityAnalysisResult.isSuccess()) {
-            TECHNICAL_LOGS.error("Sensitivity analysis failed: no output data available.");
-        }
-        return tempSystematicSensitivityAnalysisResult;
+            if (!tempSystematicSensitivityAnalysisResult.isSuccess()) {
+                TECHNICAL_LOGS.error("Sensitivity analysis failed: no output data available.");
+            }
+            return tempSystematicSensitivityAnalysisResult;
+        });
     }
 }

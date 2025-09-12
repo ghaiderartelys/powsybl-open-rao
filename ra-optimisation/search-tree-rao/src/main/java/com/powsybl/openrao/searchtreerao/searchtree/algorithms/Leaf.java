@@ -9,6 +9,7 @@ package com.powsybl.openrao.searchtreerao.searchtree.algorithms;
 import com.powsybl.openrao.commons.MeasurementRounding;
 import com.powsybl.openrao.commons.OpenRaoException;
 import com.powsybl.openrao.commons.Unit;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Instant;
 import com.powsybl.openrao.data.crac.api.RaUsageLimits;
 import com.powsybl.openrao.data.crac.api.RemedialAction;
@@ -152,23 +153,26 @@ public class Leaf implements OptimizationResult {
      * If the computation works fine status is updated to EVALUATED otherwise it is set to ERROR.
      */
     void evaluate(ObjectiveFunction objectiveFunction, SensitivityComputer sensitivityComputer) {
-        RemedialActionActivationResult remedialActionActivationResult = new RemedialActionActivationResultImpl(raActivationResultFromParentLeaf, new NetworkActionsResultImpl(Map.of(optimizationPerimeter.getMainOptimizationState(), appliedNetworkActionsInPrimaryState)));
-        if (status.equals(Status.EVALUATED)) {
-            TECHNICAL_LOGS.debug("Leaf has already been evaluated");
+        OpenTelemetryReporter.withSpan("rao.searchTree.leaf.evaluate", () -> {
+            RemedialActionActivationResult remedialActionActivationResult = new RemedialActionActivationResultImpl(raActivationResultFromParentLeaf, new NetworkActionsResultImpl(Map.of(optimizationPerimeter.getMainOptimizationState(), appliedNetworkActionsInPrimaryState)));
+            if (status.equals(Status.EVALUATED)) {
+                TECHNICAL_LOGS.debug("Leaf has already been evaluated");
+                preOptimObjectiveFunctionResult = objectiveFunction.evaluate(preOptimFlowResult, remedialActionActivationResult);
+                return;
+            }
+            TECHNICAL_LOGS.debug("Evaluating {}", this);
+            sensitivityComputer.compute(network);
+            if (sensitivityComputer.getSensitivityResult().getSensitivityStatus() == ComputationStatus.FAILURE) {
+                BUSINESS_WARNS.warn("Failed to evaluate leaf: sensitivity analysis failed");
+                status = Status.ERROR;
+                return;
+            }
+            preOptimSensitivityResult = sensitivityComputer.getSensitivityResult();
+            preOptimFlowResult = sensitivityComputer.getBranchResult(network);
             preOptimObjectiveFunctionResult = objectiveFunction.evaluate(preOptimFlowResult, remedialActionActivationResult);
-            return;
-        }
-        TECHNICAL_LOGS.debug("Evaluating {}", this);
-        sensitivityComputer.compute(network);
-        if (sensitivityComputer.getSensitivityResult().getSensitivityStatus() == ComputationStatus.FAILURE) {
-            BUSINESS_WARNS.warn("Failed to evaluate leaf: sensitivity analysis failed");
-            status = Status.ERROR;
-            return;
-        }
-        preOptimSensitivityResult = sensitivityComputer.getSensitivityResult();
-        preOptimFlowResult = sensitivityComputer.getBranchResult(network);
-        preOptimObjectiveFunctionResult = objectiveFunction.evaluate(preOptimFlowResult, remedialActionActivationResult);
-        status = Status.EVALUATED;
+            status = Status.EVALUATED;
+        });
+
     }
 
     /**
@@ -182,61 +186,63 @@ public class Leaf implements OptimizationResult {
      * corresponding to a new variant created by the IteratingLinearOptimizer.
      */
     void optimize(SearchTreeInput searchTreeInput, SearchTreeParameters parameters) {
-        if (!optimizationDataPresent) {
-            throw new OpenRaoException("Cannot optimize leaf, because optimization data has been deleted");
-        }
-        if (status.equals(Status.OPTIMIZED)) {
-            // If the leaf has already been optimized a first time, reset the setpoints to their pre-optim values
-            TECHNICAL_LOGS.debug("Resetting range action setpoints to their pre-optim values");
-            resetPreOptimRangeActionsSetpoints(searchTreeInput.getOptimizationPerimeter());
-        }
-        if (status.equals(Status.EVALUATED) || status.equals(Status.OPTIMIZED)) {
-            TECHNICAL_LOGS.debug("Optimizing leaf...");
+        OpenTelemetryReporter.withSpan("rao.searchTree.leaf.optimize", () -> {
+            if (!optimizationDataPresent) {
+                throw new OpenRaoException("Cannot optimize leaf, because optimization data has been deleted");
+            }
+            if (status.equals(Status.OPTIMIZED)) {
+                // If the leaf has already been optimized a first time, reset the setpoints to their pre-optim values
+                TECHNICAL_LOGS.debug("Resetting range action setpoints to their pre-optim values");
+                resetPreOptimRangeActionsSetpoints(searchTreeInput.getOptimizationPerimeter());
+            }
+            if (status.equals(Status.EVALUATED) || status.equals(Status.OPTIMIZED)) {
+                TECHNICAL_LOGS.debug("Optimizing leaf...");
 
-            // build input
-            IteratingLinearOptimizerInput linearOptimizerInput = IteratingLinearOptimizerInput.create()
-                    .withNetwork(network)
-                    .withOptimizationPerimeter(searchTreeInput.getOptimizationPerimeter())
-                    .withInitialFlowResult(searchTreeInput.getInitialFlowResult())
-                    .withPrePerimeterFlowResult(searchTreeInput.getPrePerimeterResult())
-                    .withPrePerimeterSetpoints(prePerimeterSetpoints)
-                    .withPreOptimizationFlowResult(preOptimFlowResult)
-                    .withPreOptimizationSensitivityResult(preOptimSensitivityResult)
-                    .withPreOptimizationAppliedRemedialActions(appliedRemedialActionsInSecondaryStates)
-                    .withRaActivationFromParentLeaf(raActivationResultFromParentLeaf)
-                    .withAppliedNetworkActionsInPrimaryState(new NetworkActionsResultImpl(Map.of(optimizationPerimeter.getMainOptimizationState(), appliedNetworkActionsInPrimaryState)))
-                    .withObjectiveFunction(searchTreeInput.getObjectiveFunction())
-                    .withToolProvider(searchTreeInput.getToolProvider())
-                    .withOutageInstant(searchTreeInput.getOutageInstant())
+                // build input
+                IteratingLinearOptimizerInput linearOptimizerInput = IteratingLinearOptimizerInput.create()
+                        .withNetwork(network)
+                        .withOptimizationPerimeter(searchTreeInput.getOptimizationPerimeter())
+                        .withInitialFlowResult(searchTreeInput.getInitialFlowResult())
+                        .withPrePerimeterFlowResult(searchTreeInput.getPrePerimeterResult())
+                        .withPrePerimeterSetpoints(prePerimeterSetpoints)
+                        .withPreOptimizationFlowResult(preOptimFlowResult)
+                        .withPreOptimizationSensitivityResult(preOptimSensitivityResult)
+                        .withPreOptimizationAppliedRemedialActions(appliedRemedialActionsInSecondaryStates)
+                        .withRaActivationFromParentLeaf(raActivationResultFromParentLeaf)
+                        .withAppliedNetworkActionsInPrimaryState(new NetworkActionsResultImpl(Map.of(optimizationPerimeter.getMainOptimizationState(), appliedNetworkActionsInPrimaryState)))
+                        .withObjectiveFunction(searchTreeInput.getObjectiveFunction())
+                        .withToolProvider(searchTreeInput.getToolProvider())
+                        .withOutageInstant(searchTreeInput.getOutageInstant())
+                        .build();
+
+                // build parameters
+                IteratingLinearOptimizerParameters linearOptimizerParameters = IteratingLinearOptimizerParameters.create()
+                    .withObjectiveFunction(parameters.getObjectiveFunction())
+                    .withObjectiveFunctionUnit(parameters.getObjectiveFunctionUnit())
+                    .withRangeActionParameters(parameters.getRangeActionParameters())
+                    .withRangeActionParametersExtension(parameters.getRangeActionParametersExtension())
+                    .withMnecParameters(parameters.getMnecParameters())
+                    .withMnecParametersExtension(parameters.getMnecParametersExtension())
+                    .withMaxMinRelativeMarginParameters(parameters.getMaxMinRelativeMarginParameters())
+                    .withMinMarginParameters(parameters.getMaxMinMarginsParameters())
+                    .withLoopFlowParameters(parameters.getLoopFlowParameters())
+                    .withLoopFlowParametersExtension(parameters.getLoopFlowParametersExtension())
+                    .withUnoptimizedCnecParameters(parameters.getUnoptimizedCnecParameters())
+                    .withRaLimitationParameters(getRaLimitationParameters(searchTreeInput.getOptimizationPerimeter(), parameters))
+                    .withSolverParameters(parameters.getSolverParameters())
+                    .withMaxNumberOfIterations(parameters.getMaxNumberOfIterations())
+                    .withRaRangeShrinking(parameters.getTreeParameters().raRangeShrinking())
                     .build();
 
-            // build parameters
-            IteratingLinearOptimizerParameters linearOptimizerParameters = IteratingLinearOptimizerParameters.create()
-                .withObjectiveFunction(parameters.getObjectiveFunction())
-                .withObjectiveFunctionUnit(parameters.getObjectiveFunctionUnit())
-                .withRangeActionParameters(parameters.getRangeActionParameters())
-                .withRangeActionParametersExtension(parameters.getRangeActionParametersExtension())
-                .withMnecParameters(parameters.getMnecParameters())
-                .withMnecParametersExtension(parameters.getMnecParametersExtension())
-                .withMaxMinRelativeMarginParameters(parameters.getMaxMinRelativeMarginParameters())
-                .withMinMarginParameters(parameters.getMaxMinMarginsParameters())
-                .withLoopFlowParameters(parameters.getLoopFlowParameters())
-                .withLoopFlowParametersExtension(parameters.getLoopFlowParametersExtension())
-                .withUnoptimizedCnecParameters(parameters.getUnoptimizedCnecParameters())
-                .withRaLimitationParameters(getRaLimitationParameters(searchTreeInput.getOptimizationPerimeter(), parameters))
-                .withSolverParameters(parameters.getSolverParameters())
-                .withMaxNumberOfIterations(parameters.getMaxNumberOfIterations())
-                .withRaRangeShrinking(parameters.getTreeParameters().raRangeShrinking())
-                .build();
+                postOptimResult = IteratingLinearOptimizer.optimize(linearOptimizerInput, linearOptimizerParameters);
 
-            postOptimResult = IteratingLinearOptimizer.optimize(linearOptimizerInput, linearOptimizerParameters);
-
-            status = Status.OPTIMIZED;
-        } else if (status.equals(Status.ERROR)) {
-            BUSINESS_WARNS.warn("Impossible to optimize leaf: {} because evaluation failed", this);
-        } else if (status.equals(Status.CREATED)) {
-            BUSINESS_WARNS.warn("Impossible to optimize leaf: {} because evaluation has not been performed", this);
-        }
+                status = Status.OPTIMIZED;
+            } else if (status.equals(Status.ERROR)) {
+                BUSINESS_WARNS.warn("Impossible to optimize leaf: {} because evaluation failed", this);
+            } else if (status.equals(Status.CREATED)) {
+                BUSINESS_WARNS.warn("Impossible to optimize leaf: {} because evaluation has not been performed", this);
+            }
+        });
     }
 
     private void resetPreOptimRangeActionsSetpoints(OptimizationPerimeter optimizationContext) {
