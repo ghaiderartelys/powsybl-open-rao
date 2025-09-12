@@ -15,11 +15,10 @@ import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.helpers.MessageFormatter;
 
 import java.util.Collection;
 import java.util.concurrent.Callable;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class OpenTelemetryReporter {
 
@@ -186,32 +185,8 @@ public final class OpenTelemetryReporter {
     }
 
     public static String format(String pattern, Object[] args) {
-        // 1. Compile the pattern once for efficiency.
-        // The pattern \\{} matches a literal {}
-        Pattern p = Pattern.compile("\\{}");
-        Matcher m = p.matcher(pattern);
-
-        // 2. Use a StringBuffer to build the result efficiently.
-        // StringBuilder is a better choice if thread safety is not a concern.
-        StringBuffer sb = new StringBuffer();
-
-        // 3. Iterate through the pattern and replace placeholders.
-        int i = 0;
-        while (m.find()) {
-            if (i < args.length) {
-                // Matcher.quoteReplacement ensures any special characters in the
-                // argument's string representation are handled correctly.
-                m.appendReplacement(sb, Matcher.quoteReplacement(String.valueOf(args[i])));
-                i++;
-            } else {
-                // Append the rest of the pattern if no more arguments are available.
-                m.appendReplacement(sb, "{}");
-            }
-        }
-        // 4. Append any remaining part of the pattern after the last match.
-        m.appendTail(sb);
-
-        return sb.toString();
+        // Use the SLF4J MessageFormatter's arrayFormat method
+        return MessageFormatter.arrayFormat(pattern, args).getMessage();
     }
 
 }
