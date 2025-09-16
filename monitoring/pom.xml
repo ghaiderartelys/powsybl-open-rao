@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.powsybl</groupId>
         <artifactId>powsybl-open-rao</artifactId>
-        <version>6.6.0-OPEN-TELEMETRY</version>
+        <version>6.6.0-OPEN-TELEMETRY-SNAPSHOT</version>
     </parent>
 
     <artifactId>open-rao-monitoring</artifactId>

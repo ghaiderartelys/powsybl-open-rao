@@ -12,7 +12,7 @@
     </parent>
 
     <artifactId>powsybl-open-rao</artifactId>
-    <version>6.6.0-OPEN-TELEMETRY</version>
+    <version>6.6.0-OPEN-TELEMETRY-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>Open RAO</name>
