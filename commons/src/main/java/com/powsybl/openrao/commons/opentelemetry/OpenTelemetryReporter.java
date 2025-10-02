@@ -1,6 +1,7 @@
 package com.powsybl.openrao.commons.opentelemetry;
 
 import com.powsybl.openrao.commons.OpenRaoException;
+import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
@@ -72,7 +73,8 @@ public final class OpenTelemetryReporter {
      * @param tracerProvider
      */
     public static void setOpenTelemetryTracer(SdkTracerProvider tracerProvider) {
-        TRACER = tracerProvider.get(OPEN_RAO);
+        // TRACER = tracerProvider.get(OPEN_RAO);
+        TRACER = GlobalOpenTelemetry.getTracer(OPEN_RAO);
     }
 
     @SuppressWarnings("unused")
