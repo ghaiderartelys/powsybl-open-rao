@@ -19,7 +19,7 @@ build:
       </settings>
       EOF
 
-    - mvn --batch-mode --errors --fail-at-end clean compile
+    - mvn --batch-mode --errors --fail-at-end clean compile -U
     - mvn --batch-mode --errors --fail-at-end test > test.log 2>&1
     - mvn --batch-mode --errors --fail-at-end package -DskipTests
 
