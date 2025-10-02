@@ -73,8 +73,10 @@ public final class OpenTelemetryReporter {
      * @param tracerProvider
      */
     public static void setOpenTelemetryTracer(SdkTracerProvider tracerProvider) {
+        LOGGER.debug("setOpenTelemetryTracer. HasProvider={}", (tracerProvider != null));
         TRACER = (tracerProvider != null) ? tracerProvider.get(OPEN_RAO)
             : GlobalOpenTelemetry.getTracer(OPEN_RAO);
+        LOGGER.debug("setOpenTelemetryTracer. Built Tracer={}", TRACER);
     }
 
     @SuppressWarnings("unused")
@@ -111,6 +113,7 @@ public final class OpenTelemetryReporter {
      * @throws Exception if the Callable throws an exception.
      */
     public static <T> T withSpan(String spanName, Callable<T> callable) {
+        LOGGER.debug("withSpan. HasTracer={}", (TRACER != null));
         if (TRACER != null) {
             Span span = TRACER.spanBuilder(spanName).startSpan();
             try (Scope scope = span.makeCurrent()) {
@@ -145,6 +148,7 @@ public final class OpenTelemetryReporter {
      * @param runnable The operation to execute, wrapped in a Runnable.
      */
     public static void withSpan(String spanName, Runnable runnable, boolean error) {
+        LOGGER.debug("withSpan. HasTracer={}", (TRACER != null));
         if (TRACER != null) {
             Span span = TRACER.spanBuilder(spanName).startSpan();
             if (error) {
