@@ -73,8 +73,8 @@ public final class OpenTelemetryReporter {
      * @param tracerProvider
      */
     public static void setOpenTelemetryTracer(SdkTracerProvider tracerProvider) {
-        // TRACER = tracerProvider.get(OPEN_RAO);
-        TRACER = GlobalOpenTelemetry.getTracer(OPEN_RAO);
+        TRACER = (tracerProvider != null) ? tracerProvider.get(OPEN_RAO)
+            : GlobalOpenTelemetry.getTracer(OPEN_RAO);
     }
 
     @SuppressWarnings("unused")
