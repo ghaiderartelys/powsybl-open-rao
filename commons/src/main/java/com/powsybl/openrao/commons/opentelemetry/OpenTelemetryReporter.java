@@ -14,6 +14,7 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
@@ -30,6 +31,7 @@ public final class OpenTelemetryReporter {
      * The open telemetry tracer
      */
     private static Tracer TRACER;
+    private static boolean TRACE_ALL_LOGS = false;
 
     /**
      * Logger for the spans creation
@@ -72,11 +74,10 @@ public final class OpenTelemetryReporter {
      *
      * @param tracerProvider
      */
-    public static void setOpenTelemetryTracer(SdkTracerProvider tracerProvider) {
+    public static void setOpenTelemetryTracer(SdkTracerProvider tracerProvider, boolean traceAllLogs) {
+        TRACE_ALL_LOGS = traceAllLogs;
         var hasProvider = tracerProvider != null;
-        LOGGER.debug("setOpenTelemetryTracer. HasProvider={}", hasProvider);
         TRACER = hasProvider ? tracerProvider.get(OPEN_RAO) : GlobalOpenTelemetry.getTracer(OPEN_RAO);
-        LOGGER.debug("setOpenTelemetryTracer. Built Tracer={}", TRACER);
     }
 
     @SuppressWarnings("unused")
@@ -114,7 +115,6 @@ public final class OpenTelemetryReporter {
      */
     public static <T> T withSpan(String spanName, Callable<T> callable) {
         var hasTracer = TRACER != null;
-        LOGGER.debug("withSpan. HasTracer={}", hasTracer);
         if (hasTracer) {
             Span span = TRACER.spanBuilder(spanName).startSpan();
             try (Scope scope = span.makeCurrent()) {
@@ -150,7 +150,6 @@ public final class OpenTelemetryReporter {
      */
     public static void withSpan(String spanName, Runnable runnable, boolean error) {
         var hasTracer = TRACER != null;
-        LOGGER.debug("withSpan. HasTracer={}", hasTracer);
         if (hasTracer) {
             Span span = TRACER.spanBuilder(spanName).startSpan();
             if (error) {
@@ -172,29 +171,41 @@ public final class OpenTelemetryReporter {
         }
     }
 
+    private static void doLog(boolean loggerEnabled, Consumer<String> logWriter, String format, Object... arguments) {
+        if (!loggerEnabled) {
+            return;
+        }
+        var msg = format(format, arguments);
+        if (TRACE_ALL_LOGS) {
+            OpenTelemetryReporter.withSpan(msg, () -> logWriter.accept(msg));
+        } else {
+            logWriter.accept(msg);
+        }
+    }
+
+    private static String format(String pattern, Object[] args) {
+        // Use the SLF4J MessageFormatter's arrayFormat method
+        return MessageFormatter.arrayFormat(pattern, args).getMessage();
+    }
+
     public static void trace(Logger logger, String format, Object... arguments) {
-        OpenTelemetryReporter.withSpan(format(format, arguments), () -> logger.trace(format, arguments));
+        doLog(logger.isTraceEnabled(), logger::trace, format, arguments);
     }
 
     public static void info(Logger logger, String format, Object... arguments) {
-        OpenTelemetryReporter.withSpan(format(format, arguments), () -> logger.info(format, arguments));
+        doLog(logger.isInfoEnabled(), logger::info, format, arguments);
     }
 
     public static void warn(Logger logger, String format, Object... arguments) {
-        OpenTelemetryReporter.withSpan(format(format, arguments), () -> logger.warn(format, arguments));
+        doLog(logger.isWarnEnabled(), logger::warn, format, arguments);
     }
 
     public static void error(Logger logger, String format, Object... arguments) {
-        OpenTelemetryReporter.withSpan(format(format, arguments), () -> logger.error(format, arguments), true);
+        doLog(logger.isErrorEnabled(), logger::error, format, arguments);
     }
 
     public static void debug(Logger logger, String format, Object... arguments) {
-        OpenTelemetryReporter.withSpan(format(format, arguments), () -> logger.debug(format, arguments));
-    }
-
-    public static String format(String pattern, Object[] args) {
-        // Use the SLF4J MessageFormatter's arrayFormat method
-        return MessageFormatter.arrayFormat(pattern, args).getMessage();
+        doLog(logger.isDebugEnabled(), logger::debug, format, arguments);
     }
 
 }
