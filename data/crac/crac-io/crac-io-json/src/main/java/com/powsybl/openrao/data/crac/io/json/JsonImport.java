@@ -10,16 +10,15 @@ package com.powsybl.openrao.data.crac.io.json;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.auto.service.AutoService;
-import com.networknt.schema.JsonSchema;
 import com.powsybl.iidm.network.Network;
 import com.powsybl.openrao.commons.OpenRaoException;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.CracCreationContext;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.io.Importer;
 import com.powsybl.openrao.data.crac.api.parameters.CracCreationParameters;
 import com.powsybl.openrao.data.crac.io.json.deserializers.CracDeserializer;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -30,9 +29,6 @@ import java.util.regex.Pattern;
 
 import static com.powsybl.commons.json.JsonUtil.createObjectMapper;
 import static com.powsybl.openrao.commons.logs.OpenRaoLoggerProvider.TECHNICAL_LOGS;
-import static com.powsybl.openrao.data.crac.io.json.JsonSchemaProvider.getSchema;
-import static com.powsybl.openrao.data.crac.io.json.JsonSchemaProvider.getValidationErrors;
-import static com.powsybl.openrao.data.crac.io.json.JsonSchemaProvider.isCracFile;
 
 /**
  * @author Viktor Terrier {@literal <viktor.terrier at rte-france.com>}
@@ -50,13 +46,12 @@ public class JsonImport implements Importer {
         if (!filename.endsWith(".json")) {
             return false;
         }
-        try {
-            ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(inputStream.readAllBytes());
-            if (isCracFile(byteArrayInputStream)) {
-                byteArrayInputStream.reset();
-                Version cracVersion = readVersion(byteArrayInputStream);
-                JsonSchema jsonSchema = getSchema(cracVersion);
-                List<String> validationError = getValidationErrors(jsonSchema, byteArrayInputStream);
+        try (var inputData = new TmpFile("crac-import", inputStream)) {
+            if (JsonSchemaProvider.isCracFile(inputData.getFileInputStream())) {
+                Version cracVersion = readVersion(inputData.getFileInputStream());
+                var jsonSchema = JsonSchemaProvider.getSchema(cracVersion);
+                //TODO RTE: do we really need to verify here?
+                List<String> validationError = JsonSchemaProvider.getValidationErrors(jsonSchema, inputData.getFileInputStream());
                 if (validationError.isEmpty()) {
                     return true;
                 }
@@ -75,11 +70,15 @@ public class JsonImport implements Importer {
             throw new OpenRaoException("Network object is null but it is needed to map contingency's elements");
         }
         try {
+            //TODO
             ObjectMapper objectMapper = createObjectMapper();
             SimpleModule module = new SimpleModule();
             module.addDeserializer(Crac.class, new CracDeserializer(cracCreationParameters.getCracFactory(), network));
             objectMapper.registerModule(module);
+
+            //TODO
             Crac crac = objectMapper.readValue(inputStream, Crac.class);
+
             CracCreationContext cracCreationContext = new JsonCracCreationContext(true, crac, network.getNameOrId());
             return cracCreationContext;
         } catch (IOException e) {
@@ -91,11 +90,18 @@ public class JsonImport implements Importer {
         }
     }
 
-    private static Version readVersion(ByteArrayInputStream cracByteArrayInputStream) {
-        String cracContent = new String(cracByteArrayInputStream.readAllBytes(), StandardCharsets.UTF_8);
-        cracByteArrayInputStream.reset();
+    private static Version readVersion(InputStream cracInputStream) {
+        byte[] buffer = new byte[4096];
+        int bytesRead = 0;
+        try {
+            bytesRead = cracInputStream.read(buffer);
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading version", e);
+        }
+        String cracPrefix = new String(buffer, 0, bytesRead, StandardCharsets.UTF_8);
+
         Pattern versionPattern = Pattern.compile("\"version\"\\s?:\\s?\"([1-9]\\d*)\\.(\\d+)\"");
-        Matcher versionMatcher = versionPattern.matcher(cracContent);
+        Matcher versionMatcher = versionPattern.matcher(cracPrefix);
         versionMatcher.find();
         return new Version(Integer.parseInt(versionMatcher.group(1)), Integer.parseInt(versionMatcher.group(2)));
     }

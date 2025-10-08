@@ -8,6 +8,7 @@ package com.powsybl.openrao.searchtreerao.marmot;
 
 import com.powsybl.iidm.network.Network;
 import com.powsybl.openrao.data.crac.api.Crac;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.raoresult.api.RaoResult;
 import com.powsybl.openrao.raoapi.RaoInput;
 import com.powsybl.openrao.raoapi.parameters.RaoParameters;
@@ -46,9 +47,9 @@ class PreventiveOptimizationResultTest {
         createInitialScenarioVariant(network2);
         createInitialScenarioVariant(network3);
 
-        Crac crac1 = Crac.read("small-crac-2pst-1600.json", PreventiveOptimizationResultTest.class.getResourceAsStream("/crac/small-crac-2pst-1600.json"), network1);
-        Crac crac2 = Crac.read("small-crac-2pst-1700.json", PreventiveOptimizationResultTest.class.getResourceAsStream("/crac/small-crac-2pst-1700.json"), network2);
-        Crac crac3 = Crac.read("small-crac-2pst-1800.json", PreventiveOptimizationResultTest.class.getResourceAsStream("/crac/small-crac-2pst-1800.json"), network3);
+        Crac crac1 = Crac.read("small-crac-2pst-1600.json", getResourceAsStream("/crac/small-crac-2pst-1600.json"), network1);
+        Crac crac2 = Crac.read("small-crac-2pst-1700.json", getResourceAsStream("/crac/small-crac-2pst-1700.json"), network2);
+        Crac crac3 = Crac.read("small-crac-2pst-1800.json", getResourceAsStream("/crac/small-crac-2pst-1800.json"), network3);
 
         raoInput1 = RaoInput.build(network1, crac1).build();
         raoInput2 = RaoInput.build(network2, crac2).build();
@@ -147,5 +148,9 @@ class PreventiveOptimizationResultTest {
         assertEquals("InitialScenario_with_topological_actions", network3.getVariantManager().getWorkingVariantId());
         assertEquals(0.0, network3.getGenerator("NNL1AA1 _generator").getTargetP());
         assertEquals(0.0, network3.getGenerator("FFR1AA1 _generator").getTargetP());
+    }
+
+    protected TmpFile getResourceAsStream(String s) throws IOException {
+        return new TmpFile("test", getClass().getResourceAsStream(s));
     }
 }

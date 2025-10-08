@@ -30,17 +30,22 @@ public final class JsonSchemaProvider {
 
     private static final String SCHEMAS_DIRECTORY = "/schemas/crac/";
     private static final String SCHEMAS_NAME_PATTERN = "crac-v%s.%s.json";
-    private static final String MINIMUM_VIABLE_CRAC_SCHEMA = "minimum-viable-crac.json";
     private static final JsonSchemaFactory SCHEMA_FACTORY = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
     private static final SchemaValidatorsConfig CONFIG = SchemaValidatorsConfig.builder().locale(Locale.UK).build();
     private static final ObjectMapper MAPPER = new ObjectMapper().configure(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS.mappedFeature(), true);
 
     public static List<String> getValidationErrors(JsonSchema schema, InputStream cracInputStream) throws IOException {
+        //TODO find a way to avoid reading file into memory
         return schema.validate(MAPPER.readTree(cracInputStream)).stream().map(ValidationMessage::getMessage).toList();
     }
 
-    public static boolean isCracFile(InputStream cracInputStream) throws IOException {
-        return getValidationErrors(getSchema(getSchemaAsStream(MINIMUM_VIABLE_CRAC_SCHEMA)), cracInputStream).isEmpty();
+    public static boolean isCracFile(InputStream cracInputStream) {
+        try {
+            var err = MinimumViableCrac.getFirstValidationError(cracInputStream);
+            return null == err;
+        } catch (IOException e) {
+            throw new RuntimeException("Error parsing CRAC file", e);
+        }
     }
 
     public static JsonSchema getSchema(Version version) {
@@ -51,7 +56,7 @@ public final class JsonSchemaProvider {
         return getSchema(schemaInputStream);
     }
 
-    private static InputStream getSchemaAsStream(String schemaName) {
+    public static InputStream getSchemaAsStream(String schemaName) {
         return JsonSchemaProvider.class.getResourceAsStream(SCHEMAS_DIRECTORY + schemaName);
     }
 

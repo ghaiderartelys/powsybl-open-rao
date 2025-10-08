@@ -11,6 +11,7 @@ import com.powsybl.openrao.commons.Unit;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.cnec.FlowCnec;
 import com.powsybl.iidm.network.TwoSides;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.range.RangeType;
 import com.powsybl.openrao.data.crac.api.rangeaction.PstRangeAction;
 import com.powsybl.openrao.data.crac.api.rangeaction.RangeAction;
@@ -74,7 +75,7 @@ abstract class AbstractFillerTest {
         // arrange some data for all fillers test
         // crac and network
         network = NetworkImportsUtil.import12NodesNetwork();
-        crac = Crac.read("small-crac.json", getClass().getResourceAsStream("/crac/small-crac.json"), network);
+        crac = Crac.read("small-crac.json", getResourceAsStream("/crac/small-crac.json"), network);
 
         // get cnec and rangeAction
         cnec1 = crac.getFlowCnec(CNEC_1_ID);
@@ -133,5 +134,9 @@ abstract class AbstractFillerTest {
 
     protected RangeActionActivationResult getInitialRangeActionActivationResult(Set<RangeAction<?>> rangeActionSet) {
         return new RangeActionActivationResultImpl(RangeActionSetpointResultImpl.buildWithSetpointsFromNetwork(network, crac.getRangeActions()));
+    }
+
+    protected TmpFile getResourceAsStream(String s) throws IOException {
+        return new TmpFile("test", getClass().getResourceAsStream(s));
     }
 }

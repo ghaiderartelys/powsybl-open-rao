@@ -10,6 +10,7 @@ package com.powsybl.openrao.data.crac.util;
 import com.powsybl.iidm.network.Network;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.CracCreationContext;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -33,7 +34,7 @@ class CracAliasesCreatorTest {
     void testDeprecatedCracExtensions(String fileName) throws IOException {
         // Extensions have been deprecated
         InputStream inputStream = getClass().getResourceAsStream("/" + fileName);
-        CracCreationContext cracCreationContext = Crac.readWithContext(fileName, inputStream, network);
+        CracCreationContext cracCreationContext = Crac.readWithContext(fileName, new TmpFile("test", inputStream), network);
         assertFalse(cracCreationContext.isCreationSuccessful());
         assertEquals(List.of("[ERROR] Extensions are deprecated since CRAC version 1.7"), cracCreationContext.getCreationReport().getReport());
         // TODO : instead of failing import, now that we have CracCreationContext with Json CRAC, ignore extensions and log the issue

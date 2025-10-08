@@ -14,6 +14,7 @@ import com.powsybl.openrao.data.crac.api.Instant;
 import com.powsybl.openrao.data.crac.api.RaUsageLimits;
 import com.powsybl.openrao.data.crac.api.RemedialAction;
 import com.powsybl.openrao.data.crac.api.State;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.usagerule.OnConstraint;
 import com.powsybl.openrao.data.crac.api.usagerule.OnFlowConstraintInCountry;
 import com.powsybl.openrao.data.crac.api.usagerule.OnInstant;
@@ -64,7 +65,7 @@ class CseCracCreatorTest {
     private void setUp(String cracFileName, String networkFileName) throws IOException {
         Network network = Network.read(networkFileName, getClass().getResourceAsStream(networkFileName));
         InputStream is = getClass().getResourceAsStream(cracFileName);
-        cracCreationContext = (CseCracCreationContext) Crac.readWithContext(cracFileName, is, network, parameters);
+        cracCreationContext = (CseCracCreationContext) Crac.readWithContext(cracFileName, new TmpFile("test", is), network, parameters);
         importedCrac = cracCreationContext.getCrac();
         preventiveInstant = importedCrac.getInstant(PREVENTIVE_INSTANT_ID);
         outageInstant = importedCrac.getInstant(OUTAGE_INSTANT_ID);

@@ -16,6 +16,7 @@ import com.powsybl.openrao.commons.OpenRaoException;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.Instant;
 import com.powsybl.openrao.data.crac.api.NetworkElement;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.parameters.CracCreationParameters;
 import com.powsybl.openrao.data.crac.api.cnec.AngleCnec;
 import com.powsybl.openrao.data.crac.api.cnec.Cnec;
@@ -38,7 +39,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Paths;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -287,7 +287,7 @@ public final class NcCracCreationTestUtil {
     }
 
     public static NcCracCreationContext getNcCracCreationContext(String ncArchive, Network network, OffsetDateTime offsetDateTime, CracCreationParameters cracCreationParameters) {
-        try (InputStream inputStream = NcCracCreationTestUtil.class.getResourceAsStream(ncArchive)) {
+        try (var inputStream = getResourceAsStream(ncArchive)) {
             cracCreationParameters.getExtension(NcCracCreationParameters.class).setTimestamp(offsetDateTime);
             return (NcCracCreationContext) Crac.readWithContext(ncArchive, inputStream, network, cracCreationParameters);
         } catch (IOException e) {
@@ -300,4 +300,9 @@ public final class NcCracCreationTestUtil {
         importParams.put(CgmesImport.IMPORT_CGM_WITH_SUBNETWORKS, false);
         return Network.read(Paths.get(new File(NcCracCreationTestUtil.class.getResource(filename).getFile()).toString()), LocalComputationManager.getDefault(), Suppliers.memoize(ImportConfig::load).get(), importParams);
     }
+
+    protected static TmpFile getResourceAsStream(String s) throws IOException {
+        return new TmpFile("test", NcCracCreationTestUtil.class.getResourceAsStream(s));
+    }
+
 }

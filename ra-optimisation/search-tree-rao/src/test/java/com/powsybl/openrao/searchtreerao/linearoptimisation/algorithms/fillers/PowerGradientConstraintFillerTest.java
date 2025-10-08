@@ -14,6 +14,7 @@ import com.powsybl.openrao.commons.TemporalDataImpl;
 import com.powsybl.openrao.commons.Unit;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.State;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.rangeaction.InjectionRangeAction;
 import com.powsybl.openrao.data.crac.api.rangeaction.RangeAction;
 import com.powsybl.openrao.data.crac.api.usagerule.UsageMethod;
@@ -65,9 +66,9 @@ class PowerGradientConstraintFillerTest {
         Network network2 = Network.read("4Nodes.uct", PowerGradientConstraintFillerTest.class.getResourceAsStream("/network/4Nodes.uct"));
         Network network3 = Network.read("4Nodes.uct", PowerGradientConstraintFillerTest.class.getResourceAsStream("/network/4Nodes.uct"));
 
-        Crac crac1 = Crac.read("crac-1600.json", PowerGradientConstraintFillerTest.class.getResourceAsStream("/crac/crac-1600.json"), network1);
-        Crac crac2 = Crac.read("crac-1700.json", PowerGradientConstraintFillerTest.class.getResourceAsStream("/crac/crac-1700.json"), network2);
-        Crac crac3 = Crac.read("crac-1900.json", PowerGradientConstraintFillerTest.class.getResourceAsStream("/crac/crac-1900.json"), network3);
+        Crac crac1 = Crac.read("crac-1600.json", getResourceAsStream("/crac/crac-1600.json"), network1);
+        Crac crac2 = Crac.read("crac-1700.json", getResourceAsStream("/crac/crac-1700.json"), network2);
+        Crac crac3 = Crac.read("crac-1900.json", getResourceAsStream("/crac/crac-1900.json"), network3);
 
         RaoInput raoInput1 = RaoInput.build(network1, crac1).build();
         RaoInput raoInput2 = RaoInput.build(network2, crac2).build();
@@ -84,7 +85,7 @@ class PowerGradientConstraintFillerTest {
 
     private void createOneTSInput() throws IOException {
         Network network1 = Network.read("4Nodes.uct", PowerGradientConstraintFillerTest.class.getResourceAsStream("/network/4Nodes.uct"));
-        Crac crac1 = Crac.read("crac-1600.json", PowerGradientConstraintFillerTest.class.getResourceAsStream("/crac/crac-1600.json"), network1);
+        Crac crac1 = Crac.read("crac-1600.json", getResourceAsStream("/crac/crac-1600.json"), network1);
         RaoInput raoInput1 = RaoInput.build(network1, crac1).build();
 
         GeneratorConstraints generatorConstraintsFr1 = GeneratorConstraints.create().withGeneratorId("FFR1AA1 _load").withLeadTime(0.0).withLagTime(0.0).withPMin(0.0).withPMax(1000.0).withUpwardPowerGradient(500.0).withDownwardPowerGradient(-300.0).build();
@@ -254,4 +255,9 @@ class PowerGradientConstraintFillerTest {
         assertEquals(-100.0, powerGradientConstraintFR2TS12.lb(), linearProblem.infinity() * 1e-3);
         assertEquals(linearProblem.infinity(), powerGradientConstraintFR2TS12.ub(), linearProblem.infinity() * 1e-3);
     }
+
+    protected TmpFile getResourceAsStream(String s) throws IOException {
+        return new TmpFile("test", getClass().getResourceAsStream(s));
+    }
+
 }

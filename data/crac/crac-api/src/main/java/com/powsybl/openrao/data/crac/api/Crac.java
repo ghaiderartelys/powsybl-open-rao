@@ -19,6 +19,7 @@ import com.powsybl.openrao.data.crac.api.cnec.FlowCnec;
 import com.powsybl.openrao.data.crac.api.cnec.FlowCnecAdder;
 import com.powsybl.openrao.data.crac.api.cnec.VoltageCnec;
 import com.powsybl.openrao.data.crac.api.cnec.VoltageCnecAdder;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.io.Exporter;
 import com.powsybl.openrao.data.crac.api.io.Importer;
 import com.powsybl.openrao.data.crac.api.parameters.CracCreationParameters;
@@ -581,32 +582,31 @@ public interface Crac extends Identifiable<Crac> {
     /**
      * Get the CRAC format
      *
-     * @param filename    CRAC file name
-     * @param inputStream CRAC data
+     * @param file    CRAC file
      * @return the CRAC format (if found)
      */
-    static String getCracFormat(String filename, InputStream inputStream) throws IOException {
-        byte[] bytes = getBytesFromInputStream(inputStream);
-        return findImporter(filename, bytes).getFormat();
+    static String getCracFormat(File file) throws IOException {
+        try (TmpFile tempFile = new TmpFile("crac", file)) {
+            return findImporter(file.getName(), tempFile).getFormat();
+        }
     }
 
     /**
      * Import CRAC from a file, inside a CracCreationContext
      *
      * @param filename               CRAC file name
-     * @param inputStream            CRAC data
+     * @param inputData            CRAC data
      * @param network                the network on which the CRAC data is based
      * @param cracCreationParameters extra CRAC creation parameters
      * @return CracCreationContext object
      */
-    static CracCreationContext readWithContext(String filename, InputStream inputStream, Network network, CracCreationParameters cracCreationParameters) throws IOException {
-        byte[] bytes = getBytesFromInputStream(inputStream);
-        return findImporter(filename, bytes).importData(new ByteArrayInputStream(bytes), cracCreationParameters, network);
+    static CracCreationContext readWithContext(String filename, TmpFile inputData, Network network, CracCreationParameters cracCreationParameters) throws IOException {
+        return findImporter(filename, inputData).importData(inputData.getFileInputStream(), cracCreationParameters, network);
     }
 
-    private static Importer findImporter(String filename, byte[] bytes) {
+    private static Importer findImporter(String filename, TmpFile inputData) {
         return new ServiceLoaderCache<>(Importer.class).getServices().stream()
-            .filter(importer -> importer.exists(filename, new ByteArrayInputStream(bytes)))
+            .filter(importer -> importer.exists(filename, inputData.getFileInputStream()))
             .findAny()
             .orElseThrow(() -> new OpenRaoException("No suitable CRAC importer found."));
     }
@@ -615,25 +615,25 @@ public interface Crac extends Identifiable<Crac> {
      * Import CRAC from a file, inside a CracCreationContext
      *
      * @param filename    CRAC file name
-     * @param inputStream CRAC data
+     * @param inputData CRAC data
      * @param network     the network on which the CRAC data is based
      * @return CracCreationContext object
      */
-    static CracCreationContext readWithContext(String filename, InputStream inputStream, Network network) throws IOException {
-        return readWithContext(filename, inputStream, network, CracCreationParameters.load());
+    static CracCreationContext readWithContext(String filename, TmpFile inputData, Network network) throws IOException {
+        return readWithContext(filename, inputData, network, CracCreationParameters.load());
     }
 
     /**
      * Import CRAC from a file
      *
      * @param filename               CRAC file name
-     * @param inputStream            CRAC data
+     * @param inputData            CRAC data
      * @param network                the network on which the CRAC data is based
      * @param cracCreationParameters extra CRAC creation parameters
      * @return CRAC object
      */
-    static Crac read(String filename, InputStream inputStream, Network network, CracCreationParameters cracCreationParameters) throws IOException {
-        return readWithContext(filename, inputStream, network, cracCreationParameters).getCrac();
+    static Crac read(String filename, TmpFile inputData, Network network, CracCreationParameters cracCreationParameters) throws IOException {
+        return readWithContext(filename, inputData, network, cracCreationParameters).getCrac();
     }
 
     /**
@@ -644,14 +644,8 @@ public interface Crac extends Identifiable<Crac> {
      * @param network     the network on which the CRAC data is based
      * @return CRAC object
      */
-    static Crac read(String filename, InputStream inputStream, Network network) throws IOException {
+    static Crac read(String filename, TmpFile inputStream, Network network) throws IOException {
         return read(filename, inputStream, network, CracCreationParameters.load());
-    }
-
-    private static byte[] getBytesFromInputStream(InputStream inputStream) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        org.apache.commons.io.IOUtils.copy(inputStream, baos);
-        return baos.toByteArray();
     }
 
     /**

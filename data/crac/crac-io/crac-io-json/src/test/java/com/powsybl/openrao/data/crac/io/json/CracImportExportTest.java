@@ -17,6 +17,7 @@ import com.powsybl.openrao.data.crac.api.CracCreationContext;
 import com.powsybl.openrao.data.crac.api.Instant;
 import com.powsybl.openrao.data.crac.api.NetworkElement;
 import com.powsybl.openrao.data.crac.api.RaUsageLimits;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.usagerule.OnConstraint;
 import com.powsybl.openrao.data.crac.api.usagerule.OnContingencyState;
 import com.powsybl.openrao.data.crac.api.usagerule.OnFlowConstraintInCountry;
@@ -525,7 +526,7 @@ class CracImportExportTest {
     @Test
     void testImportEmptyCrac() throws IOException {
         Network network = Mockito.mock(Network.class);
-        Crac crac = Crac.read("emptyCrac.json", CracImportExportTest.class.getResourceAsStream("/emptyCrac.json"), network);
+        Crac crac = Crac.read("emptyCrac.json", new TmpFile("test-empty", CracImportExportTest.class.getResourceAsStream("/emptyCrac.json")), network);
         assertNotNull(crac);
 
         // round-trip
