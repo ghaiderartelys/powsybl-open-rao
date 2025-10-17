@@ -36,7 +36,6 @@ import com.powsybl.openrao.data.crac.api.rangeaction.PstRangeAction;
 import com.powsybl.openrao.data.crac.api.threshold.BranchThreshold;
 import com.powsybl.openrao.data.crac.impl.utils.ExhaustiveCracCreation;
 import com.powsybl.openrao.data.crac.impl.utils.NetworkImportsUtil;
-import org.checkerframework.checker.units.qual.K;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -545,8 +544,8 @@ class CracImportExportTest {
     }
 
     @Test
-    void should_get_version() {
-        assertEquals("Version[majorVersion=1, minorVersion=5]", new JsonImport().getVersion("\"version\": \"1.5\"").toString()) ;
+    void shouldGetVersion() {
+        assertEquals("Version[majorVersion=1, minorVersion=5]", new JsonImport().getVersion("\"version\": \"1.5\"").toString());
     }
 
 }
