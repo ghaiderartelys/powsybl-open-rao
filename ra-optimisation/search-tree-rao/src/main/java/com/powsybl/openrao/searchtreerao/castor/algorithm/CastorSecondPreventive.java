@@ -9,6 +9,7 @@ package com.powsybl.openrao.searchtreerao.castor.algorithm;
 import com.powsybl.iidm.network.Network;
 import com.powsybl.openrao.commons.OpenRaoException;
 import com.powsybl.openrao.commons.RandomizedString;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.Instant;
 import com.powsybl.openrao.data.crac.api.InstantKind;
@@ -139,91 +140,93 @@ public class CastorSecondPreventive {
                                             PrePerimeterResult initialOutput,
                                             PostPerimeterResult firstPreventiveResult,
                                             Map<State, PostPerimeterResult> postContingencyResults) {
-        // Run 2nd preventive RAO
-        SecondPreventiveRaoResult secondPreventiveRaoResult;
-        try {
-            secondPreventiveRaoResult = runSecondPreventiveRao(prePerimeterSensitivityAnalysis, initialOutput, firstPreventiveResult.getOptimizationResult(), postContingencyResults);
-            if (secondPreventiveRaoResult.postPraSensitivityAnalysisOutput.getSensitivityStatus() == ComputationStatus.FAILURE) {
-                return new FailedRaoResultImpl("Post-PRA sensitivity analysis failed during 2nd preventive RAO");
+        return OpenTelemetryReporter.withSpan("rao.secondPreventiveAndAutoRao", () -> {
+            // Run 2nd preventive RAO
+            SecondPreventiveRaoResult secondPreventiveRaoResult;
+            try {
+                secondPreventiveRaoResult = runSecondPreventiveRao(prePerimeterSensitivityAnalysis, initialOutput, firstPreventiveResult.getOptimizationResult(), postContingencyResults);
+                if (secondPreventiveRaoResult.postPraSensitivityAnalysisOutput.getSensitivityStatus() == ComputationStatus.FAILURE) {
+                    return new FailedRaoResultImpl("Post-PRA sensitivity analysis failed during 2nd preventive RAO");
+                }
+            } catch (OpenRaoException e) {
+                BUSINESS_LOGS.error(e.getMessage());
+                return new FailedRaoResultImpl(String.format("RAO failed during second preventive : %s", e.getMessage()));
             }
-        } catch (OpenRaoException e) {
-            BUSINESS_LOGS.error(e.getMessage());
-            return new FailedRaoResultImpl(String.format("RAO failed during second preventive : %s", e.getMessage()));
-        }
 
-        // Run 2nd automaton simulation and update results
-        BUSINESS_LOGS.info("----- Second automaton simulation [start]");
-        Map<State, PostPerimeterResult> newPostContingencyResults = castorContingencyScenarios.optimizeContingencyScenarios(network, secondPreventiveRaoResult.postPraSensitivityAnalysisOutput, true);
-        BUSINESS_LOGS.info("----- Second automaton simulation [end]");
+            // Run 2nd automaton simulation and update results
+            BUSINESS_LOGS.info("----- Second automaton simulation [start]");
+            Map<State, PostPerimeterResult> newPostContingencyResults = castorContingencyScenarios.optimizeContingencyScenarios(network, secondPreventiveRaoResult.postPraSensitivityAnalysisOutput, true);
+            BUSINESS_LOGS.info("----- Second automaton simulation [end]");
 
-        BUSINESS_LOGS.info("Merging first, second preventive and post-contingency RAO results:");
-        // Always re-run curative sensitivity analysis (re-run is necessary in several specific cases)
-        // -- Gather all post contingency remedial actions
-        // ---- Curative remedial actions :
-        // ------ appliedCras from secondPreventiveRaoResult
-        AppliedRemedialActions appliedArasAndCras = secondPreventiveRaoResult.appliedArasAndCras().copyCurative();
-        // ------ + curative range actions optimized during second preventive with global optimization
-        if (getSecondPreventiveReOptimizeCurativeRangeActions(raoParameters)) {
+            BUSINESS_LOGS.info("Merging first, second preventive and post-contingency RAO results:");
+            // Always re-run curative sensitivity analysis (re-run is necessary in several specific cases)
+            // -- Gather all post contingency remedial actions
+            // ---- Curative remedial actions :
+            // ------ appliedCras from secondPreventiveRaoResult
+            AppliedRemedialActions appliedArasAndCras = secondPreventiveRaoResult.appliedArasAndCras().copyCurative();
+            // ------ + curative range actions optimized during second preventive with global optimization
+            if (getSecondPreventiveReOptimizeCurativeRangeActions(raoParameters)) {
+                for (Map.Entry<State, PostPerimeterResult> entry : postContingencyResults.entrySet()) {
+                    State state = entry.getKey();
+                    if (!state.getInstant().isCurative()) {
+                        continue;
+                    }
+                    secondPreventiveRaoResult.perimeterResult().getActivatedRangeActions(state)
+                            .forEach(rangeAction -> appliedArasAndCras.addAppliedRangeAction(state, rangeAction, secondPreventiveRaoResult.perimeterResult.getOptimizedSetpoint(rangeAction, state)));
+                }
+            }
+            // ---- Auto remedial actions : computed during second auto, saved in newPostContingencyResults
+            // ---- only RAs from perimeters that haven't failed are included in appliedArasAndCras
+            // ---- this check is only performed here because SkippedOptimizationResultImpl with appliedRas can only be generated for AUTO instant
+            newPostContingencyResults.entrySet().stream().filter(entry ->
+                            !(entry.getValue().getOptimizationResult() instanceof SkippedOptimizationResultImpl) && entry.getKey().getInstant().isAuto())
+                    .forEach(entry -> {
+                        appliedArasAndCras.addAppliedNetworkActions(entry.getKey(), entry.getValue().getOptimizationResult().getActivatedNetworkActions());
+                        entry.getValue().getOptimizationResult().getActivatedRangeActions(entry.getKey()).forEach(rangeAction -> appliedArasAndCras.addAppliedRangeAction(entry.getKey(), rangeAction, entry.getValue().getOptimizationResult().getOptimizedSetpoint(rangeAction, entry.getKey())));
+                    });
+            // Run curative sensitivity analysis with appliedArasAndCras
+            // TODO: this is too slow, we can replace it with load-flow computations or security analysis since we don't need sensitivity values
+            PrePerimeterResult postCraSensitivityAnalysisOutput = prePerimeterSensitivityAnalysis.runBasedOnInitialResults(network, initialOutput, Collections.emptySet(), appliedArasAndCras);
+            if (postCraSensitivityAnalysisOutput.getSensitivityStatus() == ComputationStatus.FAILURE) {
+                BUSINESS_LOGS.error("Systematic sensitivity analysis after curative remedial actions after second preventive optimization failed");
+                return new FailedRaoResultImpl("Systematic sensitivity analysis after curative remedial actions after second preventive optimization failed");
+            }
             for (Map.Entry<State, PostPerimeterResult> entry : postContingencyResults.entrySet()) {
                 State state = entry.getKey();
                 if (!state.getInstant().isCurative()) {
                     continue;
                 }
-                secondPreventiveRaoResult.perimeterResult().getActivatedRangeActions(state)
-                    .forEach(rangeAction -> appliedArasAndCras.addAppliedRangeAction(state, rangeAction, secondPreventiveRaoResult.perimeterResult.getOptimizedSetpoint(rangeAction, state)));
+                // Specific case : curative state was previously skipped because it led to a sensitivity analysis failure.
+                // Curative state is still a SkippedOptimizationResultImpl, but its computation status must be updated
+                if (entry.getValue().getOptimizationResult() instanceof SkippedOptimizationResultImpl) {
+                    OptimizationResult skippedResult = new SkippedOptimizationResultImpl(state, new HashSet<>(), new HashSet<>(), postCraSensitivityAnalysisOutput.getSensitivityStatus(entry.getKey()), getSensitivityFailureOvercost(raoParameters));
+                    PrePerimeterResult prePerimeterResult = new PrePerimeterSensitivityResultImpl(skippedResult, skippedResult, null, skippedResult);
+                    newPostContingencyResults.put(state, new PostPerimeterResult(skippedResult, prePerimeterResult));
+                } else {
+                    newPostContingencyResults.put(state, new PostPerimeterResult(
+                            new CurativeWithSecondPraoResult(state, entry.getValue().getOptimizationResult(), secondPreventiveRaoResult.perimeterResult(), secondPreventiveRaoResult.remedialActionsExcluded(), postCraSensitivityAnalysisOutput, raoParameters.getObjectiveFunctionParameters().getType().costOptimization()),
+                            postCraSensitivityAnalysisOutput
+                    ));
+                }
             }
-        }
-        // ---- Auto remedial actions : computed during second auto, saved in newPostContingencyResults
-        // ---- only RAs from perimeters that haven't failed are included in appliedArasAndCras
-        // ---- this check is only performed here because SkippedOptimizationResultImpl with appliedRas can only be generated for AUTO instant
-        newPostContingencyResults.entrySet().stream().filter(entry ->
-                !(entry.getValue().getOptimizationResult() instanceof SkippedOptimizationResultImpl) && entry.getKey().getInstant().isAuto())
-            .forEach(entry -> {
-                appliedArasAndCras.addAppliedNetworkActions(entry.getKey(), entry.getValue().getOptimizationResult().getActivatedNetworkActions());
-                entry.getValue().getOptimizationResult().getActivatedRangeActions(entry.getKey()).forEach(rangeAction -> appliedArasAndCras.addAppliedRangeAction(entry.getKey(), rangeAction, entry.getValue().getOptimizationResult().getOptimizedSetpoint(rangeAction, entry.getKey())));
-            });
-        // Run curative sensitivity analysis with appliedArasAndCras
-        // TODO: this is too slow, we can replace it with load-flow computations or security analysis since we don't need sensitivity values
-        PrePerimeterResult postCraSensitivityAnalysisOutput = prePerimeterSensitivityAnalysis.runBasedOnInitialResults(network, initialOutput, Collections.emptySet(), appliedArasAndCras);
-        if (postCraSensitivityAnalysisOutput.getSensitivityStatus() == ComputationStatus.FAILURE) {
-            BUSINESS_LOGS.error("Systematic sensitivity analysis after curative remedial actions after second preventive optimization failed");
-            return new FailedRaoResultImpl("Systematic sensitivity analysis after curative remedial actions after second preventive optimization failed");
-        }
-        for (Map.Entry<State, PostPerimeterResult> entry : postContingencyResults.entrySet()) {
-            State state = entry.getKey();
-            if (!state.getInstant().isCurative()) {
-                continue;
-            }
-            // Specific case : curative state was previously skipped because it led to a sensitivity analysis failure.
-            // Curative state is still a SkippedOptimizationResultImpl, but its computation status must be updated
-            if (entry.getValue().getOptimizationResult() instanceof SkippedOptimizationResultImpl) {
-                OptimizationResult skippedResult = new SkippedOptimizationResultImpl(state, new HashSet<>(), new HashSet<>(), postCraSensitivityAnalysisOutput.getSensitivityStatus(entry.getKey()), getSensitivityFailureOvercost(raoParameters));
-                PrePerimeterResult prePerimeterResult = new PrePerimeterSensitivityResultImpl(skippedResult, skippedResult, null, skippedResult);
-                newPostContingencyResults.put(state, new PostPerimeterResult(skippedResult, prePerimeterResult));
-            } else {
-                newPostContingencyResults.put(state, new PostPerimeterResult(
-                    new CurativeWithSecondPraoResult(state, entry.getValue().getOptimizationResult(), secondPreventiveRaoResult.perimeterResult(), secondPreventiveRaoResult.remedialActionsExcluded(), postCraSensitivityAnalysisOutput, raoParameters.getObjectiveFunctionParameters().getType().costOptimization()),
-                    postCraSensitivityAnalysisOutput
-                ));
-            }
-        }
-        RaoLogger.logMostLimitingElementsResults(BUSINESS_LOGS, postCraSensitivityAnalysisOutput, raoParameters.getObjectiveFunctionParameters().getType(), raoParameters.getObjectiveFunctionParameters().getUnit(), NUMBER_LOGGED_ELEMENTS_END_RAO);
-        RaoLogger.checkIfMostLimitingElementIsFictional(BUSINESS_LOGS, postCraSensitivityAnalysisOutput);
+            RaoLogger.logMostLimitingElementsResults(BUSINESS_LOGS, postCraSensitivityAnalysisOutput, raoParameters.getObjectiveFunctionParameters().getType(), raoParameters.getObjectiveFunctionParameters().getUnit(), NUMBER_LOGGED_ELEMENTS_END_RAO);
+            RaoLogger.checkIfMostLimitingElementIsFictional(BUSINESS_LOGS, postCraSensitivityAnalysisOutput);
 
-        PostPerimeterResult postPraResult = new PostPerimeterResult(
-            secondPreventiveRaoResult.perimeterResult,
-            secondPreventiveRaoResult.postPraSensitivityAnalysisOutput
-        );
+            PostPerimeterResult postPraResult = new PostPerimeterResult(
+                    secondPreventiveRaoResult.perimeterResult,
+                    secondPreventiveRaoResult.postPraSensitivityAnalysisOutput
+            );
 
-        return new PreventiveAndCurativesRaoResultImpl(
-            stateTree,
-            initialOutput,
-            firstPreventiveResult,
-            postPraResult,
-            secondPreventiveRaoResult.remedialActionsExcluded(),
-            newPostContingencyResults,
-            crac,
-            raoParameters);
+            return new PreventiveAndCurativesRaoResultImpl(
+                    stateTree,
+                    initialOutput,
+                    firstPreventiveResult,
+                    postPraResult,
+                    secondPreventiveRaoResult.remedialActionsExcluded(),
+                    newPostContingencyResults,
+                    crac,
+                    raoParameters);
+        });
     }
 
     private record SecondPreventiveRaoResult(OptimizationResult perimeterResult,
