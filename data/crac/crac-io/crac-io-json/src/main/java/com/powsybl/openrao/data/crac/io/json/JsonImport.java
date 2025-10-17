@@ -13,6 +13,7 @@ import com.google.auto.service.AutoService;
 import com.networknt.schema.JsonSchema;
 import com.powsybl.iidm.network.Network;
 import com.powsybl.openrao.commons.OpenRaoException;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.CracCreationContext;
 import com.powsybl.openrao.data.crac.api.io.Importer;
@@ -71,24 +72,26 @@ public class JsonImport implements Importer {
 
     @Override
     public CracCreationContext importData(InputStream inputStream, CracCreationParameters cracCreationParameters, Network network) {
-        if (network == null) {
-            throw new OpenRaoException("Network object is null but it is needed to map contingency's elements");
-        }
-        try {
-            ObjectMapper objectMapper = createObjectMapper();
-            SimpleModule module = new SimpleModule();
-            module.addDeserializer(Crac.class, new CracDeserializer(cracCreationParameters.getCracFactory(), network));
-            objectMapper.registerModule(module);
-            Crac crac = objectMapper.readValue(inputStream, Crac.class);
-            CracCreationContext cracCreationContext = new JsonCracCreationContext(true, crac, network.getNameOrId());
-            return cracCreationContext;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } catch (OpenRaoException e) {
-            CracCreationContext cracCreationContext = new JsonCracCreationContext(false, null, network.getNameOrId());
-            cracCreationContext.getCreationReport().error(e.getMessage());
-            return cracCreationContext;
-        }
+        return OpenTelemetryReporter.withSpan("rao.importJsonCrac", () -> {
+            if (network == null) {
+                throw new OpenRaoException("Network object is null but it is needed to map contingency's elements");
+            }
+            try {
+                ObjectMapper objectMapper = createObjectMapper();
+                SimpleModule module = new SimpleModule();
+                module.addDeserializer(Crac.class, new CracDeserializer(cracCreationParameters.getCracFactory(), network));
+                objectMapper.registerModule(module);
+                Crac crac = objectMapper.readValue(inputStream, Crac.class);
+                CracCreationContext cracCreationContext = new JsonCracCreationContext(true, crac, network.getNameOrId());
+                return cracCreationContext;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } catch (OpenRaoException e) {
+                CracCreationContext cracCreationContext = new JsonCracCreationContext(false, null, network.getNameOrId());
+                cracCreationContext.getCreationReport().error(e.getMessage());
+                return cracCreationContext;
+            }
+        });
     }
 
     private static Version readVersion(ByteArrayInputStream cracByteArrayInputStream) {

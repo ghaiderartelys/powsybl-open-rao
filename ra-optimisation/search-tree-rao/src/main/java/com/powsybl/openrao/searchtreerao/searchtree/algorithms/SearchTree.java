@@ -383,14 +383,16 @@ public class SearchTree {
     }
 
     private void optimizeLeaf(Leaf leaf) {
-        if (!input.getOptimizationPerimeter().getRangeActions().isEmpty()) {
-            leaf.optimize(input, parameters);
-            if (!leaf.getStatus().equals(Leaf.Status.OPTIMIZED)) {
-                topLevelLogger.info("Failed to optimize leaf: {}", leaf);
+        OpenTelemetryReporter.withSpan("rao.searchTree.linearOptimization", () -> {
+            if (!input.getOptimizationPerimeter().getRangeActions().isEmpty()) {
+                leaf.optimize(input, parameters);
+                if (!leaf.getStatus().equals(Leaf.Status.OPTIMIZED)) {
+                    topLevelLogger.info("Failed to optimize leaf: {}", leaf);
+                }
+            } else {
+                TECHNICAL_LOGS.info("No range actions to optimize");
             }
-        } else {
-            TECHNICAL_LOGS.info("No range actions to optimize");
-        }
+        });
     }
 
     private SensitivityComputer getSensitivityComputerForEvaluation(boolean isRootLeaf) {
