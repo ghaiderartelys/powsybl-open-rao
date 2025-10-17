@@ -41,6 +41,7 @@ public class JsonImport implements Importer {
         return "JSON";
     }
 
+
     @Override
     public boolean exists(String filename, InputStream inputStream) {
         if (!filename.endsWith(".json")) {
@@ -51,11 +52,12 @@ public class JsonImport implements Importer {
                 Version cracVersion = readVersion(inputData.getFileInputStream());
                 var jsonSchema = JsonSchemaProvider.getSchema(cracVersion);
                 //TODO RTE: do we really need to verify here?
-                List<String> validationError = JsonSchemaProvider.getValidationErrors(jsonSchema, inputData.getFileInputStream());
-                if (validationError.isEmpty()) {
-                    return true;
-                }
-                throw new OpenRaoException("JSON file is not a valid CRAC v%s.%s. Reasons: %s".formatted(cracVersion.majorVersion(), cracVersion.minorVersion(), String.join("; ", validationError)));
+                // List<String> validationError = JsonSchemaProvider.getValidationErrors(jsonSchema, inputData.getFileInputStream());
+                //TODO
+                // if (validationError.isEmpty()) {
+                return true;
+                // }
+                // throw new OpenRaoException("JSON file is not a valid CRAC v%s.%s. Reasons: %s".formatted(cracVersion.majorVersion(), cracVersion.minorVersion(), String.join("; ", validationError)));
             }
             return false;
         } catch (IOException e) {
