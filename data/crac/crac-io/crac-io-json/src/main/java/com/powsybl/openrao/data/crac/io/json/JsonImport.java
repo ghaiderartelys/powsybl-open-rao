@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.auto.service.AutoService;
 import com.powsybl.iidm.network.Network;
 import com.powsybl.openrao.commons.OpenRaoException;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.CracCreationContext;
 import com.powsybl.openrao.data.crac.api.commons.TmpFile;
@@ -23,7 +24,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -40,7 +40,6 @@ public class JsonImport implements Importer {
     public String getFormat() {
         return "JSON";
     }
-
 
     @Override
     public boolean exists(String filename, InputStream inputStream) {
@@ -68,31 +67,37 @@ public class JsonImport implements Importer {
 
     @Override
     public CracCreationContext importData(InputStream inputStream, CracCreationParameters cracCreationParameters, Network network) {
-        if (network == null) {
-            throw new OpenRaoException("Network object is null but it is needed to map contingency's elements");
-        }
-        try {
-            //TODO
-            ObjectMapper objectMapper = createObjectMapper();
-            SimpleModule module = new SimpleModule();
-            module.addDeserializer(Crac.class, new CracDeserializer(cracCreationParameters.getCracFactory(), network));
-            objectMapper.registerModule(module);
+        return OpenTelemetryReporter.withSpan("rao.importJsonCrac", () -> {
+            if (network == null) {
+                throw new OpenRaoException(
+                    "Network object is null but it is needed to map contingency's elements");
+            }
+            try {
+                //TODO
+                ObjectMapper objectMapper = createObjectMapper();
+                SimpleModule module = new SimpleModule();
+                module.addDeserializer(Crac.class,
+                    new CracDeserializer(cracCreationParameters.getCracFactory(), network));
+                objectMapper.registerModule(module);
 
-            //TODO
-            Crac crac = objectMapper.readValue(inputStream, Crac.class);
+                //TODO
+                Crac crac = objectMapper.readValue(inputStream, Crac.class);
 
-            CracCreationContext cracCreationContext = new JsonCracCreationContext(true, crac, network.getNameOrId());
-            return cracCreationContext;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } catch (OpenRaoException e) {
-            CracCreationContext cracCreationContext = new JsonCracCreationContext(false, null, network.getNameOrId());
-            cracCreationContext.getCreationReport().error(e.getMessage());
-            return cracCreationContext;
-        }
+                CracCreationContext cracCreationContext = new JsonCracCreationContext(true, crac,
+                    network.getNameOrId());
+                return cracCreationContext;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } catch (OpenRaoException e) {
+                CracCreationContext cracCreationContext = new JsonCracCreationContext(false, null,
+                    network.getNameOrId());
+                cracCreationContext.getCreationReport().error(e.getMessage());
+                return cracCreationContext;
+            }
+        });
     }
 
-    private static Version readVersion(InputStream cracInputStream) {
+    protected Version readVersion(InputStream cracInputStream) {
         byte[] buffer = new byte[4096];
         int bytesRead = 0;
         try {
@@ -101,10 +106,15 @@ public class JsonImport implements Importer {
             throw new RuntimeException("Error reading version", e);
         }
         String cracPrefix = new String(buffer, 0, bytesRead, StandardCharsets.UTF_8);
+        return getVersion(cracPrefix);
+    }
 
+    protected Version getVersion(String crac) {
         Pattern versionPattern = Pattern.compile("\"version\"\\s?:\\s?\"([1-9]\\d*)\\.(\\d+)\"");
-        Matcher versionMatcher = versionPattern.matcher(cracPrefix);
-        versionMatcher.find();
+        Matcher versionMatcher = versionPattern.matcher(crac);
+        if (!versionMatcher.find()) {
+            throw new OpenRaoException("Error parsing version: " + crac);
+        }
         return new Version(Integer.parseInt(versionMatcher.group(1)), Integer.parseInt(versionMatcher.group(2)));
     }
 }

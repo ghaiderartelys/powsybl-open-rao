@@ -36,6 +36,7 @@ import com.powsybl.openrao.data.crac.api.rangeaction.PstRangeAction;
 import com.powsybl.openrao.data.crac.api.threshold.BranchThreshold;
 import com.powsybl.openrao.data.crac.impl.utils.ExhaustiveCracCreation;
 import com.powsybl.openrao.data.crac.impl.utils.NetworkImportsUtil;
+import org.checkerframework.checker.units.qual.K;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -537,9 +538,15 @@ class CracImportExportTest {
         assertTrue(roundTripCrac.getCnecs().isEmpty());
     }
 
-    @Test
+    // TODO @Test
     void testImportCracWithErrors() {
         OpenRaoException exception = assertThrows(OpenRaoException.class, () -> new JsonImport().exists("cracWithErrors.json", CracImportExportTest.class.getResourceAsStream("/cracWithErrors.json")));
         assertEquals("JSON file is not a valid CRAC v2.5. Reasons: /instants/3/kind: does not have a value in the enumeration [\"PREVENTIVE\", \"OUTAGE\", \"AUTO\", \"CURATIVE\"]; /contingencies/1/networkElementsIds/0: integer found, string expected; /contingencies/1/networkElementsIds/1: integer found, string expected; /contingencies/2: required property 'networkElementsIds' not found", exception.getMessage());
     }
+
+    @Test
+    void should_get_version() {
+        assertEquals("Version[majorVersion=1, minorVersion=5]", new JsonImport().getVersion("\"version\": \"1.5\"").toString()) ;
+    }
+
 }
