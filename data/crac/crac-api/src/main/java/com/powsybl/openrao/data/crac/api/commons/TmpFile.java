@@ -7,8 +7,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TmpFile implements AutoCloseable {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(TmpFile.class);
 
     private final File tempFile;
 
@@ -30,6 +34,7 @@ public class TmpFile implements AutoCloseable {
         try (OutputStream out = new FileOutputStream(tempFile)) {
             inputStream.transferTo(out);
         }
+        LOGGER.debug("Loaded data. Size={}", tempFile.length());
     }
 
     @Override
