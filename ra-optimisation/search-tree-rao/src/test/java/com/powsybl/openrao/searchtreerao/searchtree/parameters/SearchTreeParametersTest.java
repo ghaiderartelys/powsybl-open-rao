@@ -11,6 +11,7 @@ import com.powsybl.openrao.commons.Unit;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.Instant;
 import com.powsybl.openrao.data.crac.api.RaUsageLimits;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.rangeaction.RangeAction;
 import com.powsybl.openrao.raoapi.parameters.ObjectiveFunctionParameters;
 import com.powsybl.openrao.raoapi.parameters.RangeActionsOptimizationParameters;
@@ -167,7 +168,7 @@ class SearchTreeParametersTest {
     @Test
     void testDecreaseRemedialActionUsageLimits() throws IOException {
         Crac crac = Crac.read(
-            "crac.json", SearchTreeParametersTest.class.getResourceAsStream("/crac/small-crac-with-comprehensive-usage-limits-3-curative-instants.json"),
+            "crac.json", getResourceAsStream("/crac/small-crac-with-comprehensive-usage-limits-3-curative-instants.json"),
             Network.read(Paths.get(new File(Objects.requireNonNull(SearchTreeParametersTest.class.getResource("/network/small-network-2P.uct")).getFile()).toString()))
         );
 
@@ -298,4 +299,9 @@ class SearchTreeParametersTest {
         assertEquals(1, curative3RaUsageLimitsAfterCurative2Opt.getMaxTso());
         assertEquals(Map.of("FR", 3, "BE", 5), curative3RaUsageLimitsAfterCurative2Opt.getMaxElementaryActionsPerTso());
     }
+
+    protected TmpFile getResourceAsStream(String s) throws IOException {
+        return new TmpFile("test", getClass().getResourceAsStream(s));
+    }
+
 }

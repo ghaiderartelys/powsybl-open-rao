@@ -18,6 +18,7 @@ import com.powsybl.openrao.data.crac.api.InstantKind;
 import com.powsybl.openrao.data.crac.api.NetworkElement;
 import com.powsybl.openrao.data.crac.api.RaUsageLimits;
 import com.powsybl.openrao.data.crac.api.RemedialAction;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.rangeaction.VariationDirection;
 import com.powsybl.openrao.data.crac.api.usagerule.OnConstraint;
 import com.powsybl.openrao.data.crac.api.usagerule.OnContingencyState;
@@ -107,7 +108,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v1/crac-v1.0.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
 
         assertEquals(2, crac.getContingencies().size());
         assertEquals(7, crac.getFlowCnecs().size());
@@ -125,7 +126,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v1/crac-v1.1.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
 
         assertEquals(2, crac.getContingencies().size());
         assertEquals(7, crac.getFlowCnecs().size());
@@ -143,7 +144,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v1/crac-v1.2.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
 
         assertEquals(2, crac.getContingencies().size());
         assertEquals(7, crac.getFlowCnecs().size());
@@ -162,7 +163,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v1/crac-v1.3.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
 
         assertEquals(2, crac.getContingencies().size());
         assertEquals(7, crac.getFlowCnecs().size());
@@ -181,7 +182,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v1/crac-v1.4.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
 
         assertEquals(2, crac.getContingencies().size());
         assertEquals(7, crac.getFlowCnecs().size());
@@ -201,7 +202,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v1/crac-v1.5.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
 
         assertEquals(2, crac.getContingencies().size());
         assertEquals(7, crac.getFlowCnecs().size());
@@ -222,7 +223,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v1/crac-v1.6.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
 
         assertEquals(2, crac.getContingencies().size());
         assertEquals(7, crac.getFlowCnecs().size());
@@ -243,7 +244,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v1/crac-v1.7.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
 
         assertEquals(2, crac.getContingencies().size());
         assertEquals(7, crac.getFlowCnecs().size());
@@ -264,7 +265,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v1/crac-v1.8.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
 
         assertEquals(2, crac.getContingencies().size());
         assertEquals(7, crac.getFlowCnecs().size());
@@ -283,7 +284,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v1/crac-v1.9.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
 
         assertEquals(2, crac.getContingencies().size());
         assertEquals(7, crac.getFlowCnecs().size());
@@ -303,7 +304,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v2/crac-v2.0.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
         assertEquals(4, crac.getNetworkActions().size());
         testContentOfV2Point0Crac(crac);
     }
@@ -314,7 +315,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v2/crac-v2.1.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
         testContentOfV2Point1Crac(crac);
     }
 
@@ -324,7 +325,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v2/crac-v2.2.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
         assertEquals(6, crac.getNetworkActions().size());
         testContentOfV2Point2Crac(crac);
     }
@@ -335,7 +336,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v2/crac-v2.3.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
         assertEquals(6, crac.getNetworkActions().size());
         testContentOfV2Point3Crac(crac);
     }
@@ -347,7 +348,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v2/crac-v2.4.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
         assertEquals(7, crac.getNetworkActions().size());
         testContentOfV2Point4Crac(crac);
     }
@@ -358,7 +359,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v2/crac-v2.5.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
         assertEquals(7, crac.getNetworkActions().size());
         testContentOfV2Point5Crac(crac);
     }
@@ -368,7 +369,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v2/crac-v2.6.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
         assertEquals(7, crac.getNetworkActions().size());
         assertTrue(crac.getTimestamp().isEmpty());
         testContentOfV2Point6Crac(crac);
@@ -381,7 +382,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v2/crac-v2.7.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
         assertEquals(7, crac.getNetworkActions().size());
         testContentOfV2Point7Crac(crac);
     }

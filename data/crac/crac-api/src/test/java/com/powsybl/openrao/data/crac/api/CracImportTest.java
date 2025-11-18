@@ -7,6 +7,7 @@
 
 package com.powsybl.openrao.data.crac.api;
 
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -20,6 +21,6 @@ class CracImportTest {
 
     @Test
     void testImportFromInputStream() throws IOException {
-        assertEquals("crac", Crac.read("crac.json", getClass().getResourceAsStream("/crac.json"), null).getId());
+        assertEquals("crac", Crac.read("crac.json", new TmpFile("crac-test", getClass().getResourceAsStream("/crac.json")), null).getId());
     }
 }

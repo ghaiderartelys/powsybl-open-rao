@@ -14,6 +14,7 @@ import com.powsybl.openrao.commons.TemporalDataImpl;
 import com.powsybl.openrao.commons.Unit;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.cnec.FlowCnec;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.rangeaction.PstRangeAction;
 import com.powsybl.openrao.data.crac.api.rangeaction.RangeAction;
 import com.powsybl.openrao.data.raoresult.api.RaoResult;
@@ -64,9 +65,9 @@ class MarmotUtilsTest {
         Network network2 = Network.read("12Nodes_2_pst.uct", MarmotUtilsTest.class.getResourceAsStream("/network/12Nodes_2_pst.uct"));
         Network network3 = Network.read("12Nodes_2_pst.uct", MarmotUtilsTest.class.getResourceAsStream("/network/12Nodes_2_pst.uct"));
 
-        crac1 = Crac.read("small-crac-2pst-1600.json", MarmotUtilsTest.class.getResourceAsStream("/crac/small-crac-2pst-1600.json"), network1);
-        crac2 = Crac.read("small-crac-2pst-1700.json", MarmotUtilsTest.class.getResourceAsStream("/crac/small-crac-2pst-1700.json"), network2);
-        crac3 = Crac.read("small-crac-2pst-1800.json", MarmotUtilsTest.class.getResourceAsStream("/crac/small-crac-2pst-1800.json"), network3);
+        crac1 = Crac.read("small-crac-2pst-1600.json", getResourceAsStream("/crac/small-crac-2pst-1600.json"), network1);
+        crac2 = Crac.read("small-crac-2pst-1700.json", getResourceAsStream("/crac/small-crac-2pst-1700.json"), network2);
+        crac3 = Crac.read("small-crac-2pst-1800.json", getResourceAsStream("/crac/small-crac-2pst-1800.json"), network3);
 
         RaoInput raoInput1 = RaoInput.build(network1, crac1).build();
         RaoInput raoInput2 = RaoInput.build(network2, crac2).build();
@@ -217,4 +218,9 @@ class MarmotUtilsTest {
         assertEquals(initialResult3, postOptimizationResult3.prePerimeterFlowResult());
         assertEquals(raoResult3, postOptimizationResult3.topologicalOptimizationResult());
     }
+
+    protected TmpFile getResourceAsStream(String s) throws IOException {
+        return new TmpFile("test", getClass().getResourceAsStream(s));
+    }
+
 }

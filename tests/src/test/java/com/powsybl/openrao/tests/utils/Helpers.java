@@ -17,6 +17,7 @@ import com.powsybl.iidm.network.Network;
 import com.powsybl.openrao.commons.OpenRaoException;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.CracCreationContext;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.parameters.CracCreationParameters;
 import com.powsybl.openrao.data.crac.io.cim.craccreator.CimCracCreationContext;
 import com.powsybl.openrao.data.crac.io.cse.CseCracCreationContext;
@@ -67,36 +68,30 @@ public final class Helpers {
     }
 
     public static Crac importCracFromInternalFormat(File cracFile, Network network) {
-        try {
-            return roundTripOnCrac(Crac.read("crac.json", new FileInputStream(cracFile), network), network);
+        try (TmpFile tempFile = new TmpFile("crac", cracFile)) {
+            return roundTripOnCrac(Crac.read("crac.json", tempFile, network), network);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
     public static CracCreationContext importCracFromNativeCrac(File cracFile, Network network, CracCreationParameters cracCreationParameters) throws IOException {
-        byte[] cracBytes = null;
-        try (InputStream cracInputStream = new BufferedInputStream(new FileInputStream(cracFile))) {
-            cracBytes = getBytesFromInputStream(cracInputStream);
+        try (TmpFile tempFile = new TmpFile("crac", cracFile)) {
+            CracCreationContext cracCreationContext = Crac.readWithContext(cracFile.getName(), tempFile, network, cracCreationParameters);
+            // round-trip CRAC json export/import to test it implicitly
+            return roundTripOnCracCreationContext(cracCreationContext, network);
         } catch (IOException e) {
-            e.printStackTrace();
             throw new OpenRaoException("Could not load CRAC file", e);
         }
-        CracCreationContext cracCreationContext = Crac.readWithContext(cracFile.getName(), new ByteArrayInputStream(cracBytes), network, cracCreationParameters);
-        // round-trip CRAC json export/import to test it implicitly
-        return roundTripOnCracCreationContext(cracCreationContext, network);
     }
 
     public static String getCracFormat(File cracFile) {
         if (cracFile.getName().endsWith(".json")) {
             return "JSON";
         }
-        byte[] cracBytes = null;
-        try (InputStream cracInputStream = new BufferedInputStream(new FileInputStream(cracFile))) {
-            cracBytes = getBytesFromInputStream(cracInputStream);
-            return Crac.getCracFormat(cracFile.getName(), new ByteArrayInputStream(cracBytes));
+        try {
+            return Crac.getCracFormat(cracFile);
         } catch (IOException e) {
-            e.printStackTrace();
             throw new OpenRaoException("Could not load CRAC file", e);
         }
     }
@@ -117,13 +112,13 @@ public final class Helpers {
     }
 
     private static Crac roundTripOnCrac(Crac crac, Network network) throws IOException {
-        // export Crac
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        crac.write("JSON", outputStream);
-
-        // import Crac
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-        return Crac.read("crac.json", inputStream, network);
+        try (TmpFile tempFile = new TmpFile("crac")) {
+            // export Crac into JSON file
+            crac.write("JSON", tempFile.getOutputStream());
+            //TODO close ?
+            // import from JSON
+            return Crac.read("crac.json", tempFile, network);
+        }
     }
 
     public static ZonalData<SensitivityVariableSet> importUcteGlskFile(File glskFile, OffsetDateTime timestamp, Network network) throws IOException {
@@ -201,14 +196,4 @@ public final class Helpers {
         }
     }
 
-    private static byte[] getBytesFromInputStream(InputStream inputStream) {
-        try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            org.apache.commons.io.IOUtils.copy(inputStream, baos);
-            return baos.toByteArray();
-        } catch (IOException e) {
-            e.printStackTrace();
-            throw new UncheckedIOException(e);
-        }
-    }
 }
