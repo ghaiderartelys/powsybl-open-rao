@@ -7,6 +7,7 @@
 package com.powsybl.openrao.util;
 
 import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import org.slf4j.MDC;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -23,11 +24,11 @@ public final class MCDContextWrapper {
     public static Runnable wrapWithMdcContext(Runnable task) {
         //save the current MDC context
         Map<String, String> contextMap = MDC.getCopyOfContextMap();
+        Context otelContext = Context.current();
         return () -> {
             setMDCContext(contextMap);
-            try {
-                var openTelTask = Context.current().wrap(task);
-                openTelTask.run();
+            try (Scope scope = otelContext.makeCurrent()) {
+                task.run();
             } finally {
                 // once the task is complete, clear MDC
                 MDC.clear();
@@ -38,11 +39,11 @@ public final class MCDContextWrapper {
     public static <T> Callable<T> wrapWithMdcContext(Callable<T> task) {
         //save the current MDC context
         Map<String, String> contextMap = MDC.getCopyOfContextMap();
+        Context otelContext = Context.current();
         return () -> {
             setMDCContext(contextMap);
-            try {
-                var openTelTask = Context.current().wrap(task);
-                return openTelTask.call();
+            try (Scope scope = otelContext.makeCurrent()) {
+                return task.call();
             } finally {
                 // once the task is complete, clear MDC
                 MDC.clear();
