@@ -30,7 +30,6 @@ import com.powsybl.openrao.sensitivityanalysis.AppliedRemedialActions;
 import com.powsybl.openrao.util.AbstractNetworkPool;
 import com.google.common.hash.Hashing;
 import com.powsybl.iidm.network.Network;
-import io.opentelemetry.context.Context;
 import org.apache.commons.lang3.NotImplementedException;
 
 import java.nio.charset.StandardCharsets;
@@ -229,22 +228,9 @@ public class SearchTree {
             TECHNICAL_LOGS.info("Leaves to evaluate: {}", numberOfCombinations);
         }
         AtomicInteger remainingLeaves = new AtomicInteger(numberOfCombinations);
-//        List<ForkJoinTask<Object>> tasks = naCombinationsSorted.stream().map(naCombination ->
-//            networkPool.submit(() -> optimizeOneLeaf(networkPool, naCombination, remainingLeaves))
-//        ).toList();
-
-        List<ForkJoinTask<Object>> tasks = naCombinationsSorted.stream()
-                .map(naCombination -> {
-                    // Capture the current context from the main thread.
-                    Context context = Context.current();
-
-                    // Wrap your callable with the captured context.
-                    Callable<Object> wrappedTask = context.wrap(() -> optimizeOneLeaf(networkPool, naCombination, remainingLeaves));
-
-                    // Submit the wrapped task to the pool.
-                    return networkPool.submit(wrappedTask);
-                })
-                .collect(Collectors.toList());
+        List<ForkJoinTask<Object>> tasks = naCombinationsSorted.stream().map(naCombination ->
+            networkPool.submit(() -> optimizeOneLeaf(networkPool, naCombination, remainingLeaves))
+        ).toList();
         for (ForkJoinTask<Object> task : tasks) {
             try {
                 task.get();
