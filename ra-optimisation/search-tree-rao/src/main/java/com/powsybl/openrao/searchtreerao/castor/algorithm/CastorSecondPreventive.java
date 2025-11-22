@@ -140,7 +140,7 @@ public class CastorSecondPreventive {
                                             PrePerimeterResult initialOutput,
                                             PostPerimeterResult firstPreventiveResult,
                                             Map<State, PostPerimeterResult> postContingencyResults) {
-        return OpenTelemetryReporter.withSpan("rao.secondPreventiveAndAutoRao", () -> {
+        return OpenTelemetryReporter.withSpan("rao.secondPreventiveAndAutoRao", cx -> {
             // Run 2nd preventive RAO
             SecondPreventiveRaoResult secondPreventiveRaoResult;
             try {

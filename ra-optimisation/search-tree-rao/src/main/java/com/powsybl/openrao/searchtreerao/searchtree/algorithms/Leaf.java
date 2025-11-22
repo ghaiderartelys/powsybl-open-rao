@@ -153,7 +153,7 @@ public class Leaf implements OptimizationResult {
      * If the computation works fine status is updated to EVALUATED otherwise it is set to ERROR.
      */
     void evaluate(ObjectiveFunction objectiveFunction, SensitivityComputer sensitivityComputer) {
-        OpenTelemetryReporter.withSpan("rao.searchTree.leaf.evaluate", () -> {
+        OpenTelemetryReporter.withSpan("rao.searchTree.leaf.evaluate", cx -> {
             RemedialActionActivationResult remedialActionActivationResult = new RemedialActionActivationResultImpl(raActivationResultFromParentLeaf, new NetworkActionsResultImpl(Map.of(optimizationPerimeter.getMainOptimizationState(), appliedNetworkActionsInPrimaryState)));
             if (status.equals(Status.EVALUATED)) {
                 TECHNICAL_LOGS.debug("Leaf has already been evaluated");
@@ -186,7 +186,7 @@ public class Leaf implements OptimizationResult {
      * corresponding to a new variant created by the IteratingLinearOptimizer.
      */
     void optimize(SearchTreeInput searchTreeInput, SearchTreeParameters parameters) {
-        OpenTelemetryReporter.withSpan("rao.searchTree.leaf.optimize", () -> {
+        OpenTelemetryReporter.withSpan("rao.searchTree.leaf.optimize", cx -> {
             if (!optimizationDataPresent) {
                 throw new OpenRaoException("Cannot optimize leaf, because optimization data has been deleted");
             }

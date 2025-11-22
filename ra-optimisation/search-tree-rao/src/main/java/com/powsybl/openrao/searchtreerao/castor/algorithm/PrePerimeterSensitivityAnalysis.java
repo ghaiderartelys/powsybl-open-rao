@@ -46,7 +46,9 @@ public class PrePerimeterSensitivityAnalysis extends AbstractMultiPerimeterSensi
     }
 
     public PrePerimeterResult runInitialSensitivityAnalysis(Network network) {
-        return OpenTelemetryReporter.withSpan("rao.runInitialSensitivityAnalysis", () -> runInitialSensitivityAnalysis(network, Set.of()));
+        return OpenTelemetryReporter.withSpan("rao.runInitialSensitivityAnalysis", cx -> {
+            return runInitialSensitivityAnalysis(network, Set.of());
+        });
     }
 
     public PrePerimeterResult runInitialSensitivityAnalysis(Network network, Set<State> optimizedStates) {
@@ -69,7 +71,7 @@ public class PrePerimeterSensitivityAnalysis extends AbstractMultiPerimeterSensi
                                                        FlowResult initialFlowResult,
                                                        Set<String> operatorsNotSharingCras,
                                                        AppliedRemedialActions appliedCurativeRemedialActions) {
-        return OpenTelemetryReporter.withSpan("rao.runSensitivityAnalysisBasedOnInitialResults", () -> {
+        return OpenTelemetryReporter.withSpan("rao.runSensitivityAnalysisBasedOnInitialResults", cx -> {
             sensitivityComputer = buildSensitivityComputer(initialFlowResult, appliedCurativeRemedialActions);
             objectiveFunction = ObjectiveFunction.build(flowCnecs, toolProvider.getLoopFlowCnecs(flowCnecs), initialFlowResult, initialFlowResult, operatorsNotSharingCras, raoParameters, Set.of(crac.getPreventiveState()));
 

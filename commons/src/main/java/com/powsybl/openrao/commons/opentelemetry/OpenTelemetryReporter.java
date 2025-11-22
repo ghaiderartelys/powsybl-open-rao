@@ -2,10 +2,8 @@ package com.powsybl.openrao.commons.opentelemetry;
 
 import com.powsybl.openrao.commons.OpenRaoException;
 import io.opentelemetry.api.GlobalOpenTelemetry;
-import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
-import io.opentelemetry.context.Scope;
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
@@ -14,19 +12,20 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
+import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
 
 import java.util.Collection;
-import java.util.concurrent.Callable;
 
 public final class OpenTelemetryReporter {
 
-    public static final String OPEN_RAO = "open-rao";
+    protected static final String OPEN_RAO = "open-rao";
 
-    public static final String VERSION = "1.0.0";
+    protected static final String VERSION = "1.0.0";
+
     /**
      * The open telemetry tracer
      */
@@ -42,7 +41,6 @@ public final class OpenTelemetryReporter {
      * Private constructor
      */
     private OpenTelemetryReporter() {
-
     }
 
     /**
@@ -103,43 +101,28 @@ public final class OpenTelemetryReporter {
         };
     }
 
+    @FunctionalInterface
+    public interface ThrowingFunction<T, R> {
+        R apply(T t) throws Exception;
+    }
+
+    @FunctionalInterface
+    public interface ThrowingConsumer<T> {
+        void accept(T t) throws Exception;
+    }
+
     /**
      * A generic utility method to wrap a method call with a span.
      * This method handles span creation, context management, and error handling.
      *
      * @param spanName The name of the span to create.
-     * @param callable The operation to execute, wrapped in a Callable.
+     * @param runnable The operation to execute, wrapped in a Callable.
      * @param <T>      The return type of the Callable.
      * @return The result of the Callable.
      * @throws Exception if the Callable throws an exception.
      */
-    public static <T> T withSpan(String spanName, Callable<T> callable) {
-        var hasTracer = TRACER != null;
-        if (hasTracer) {
-            Span span = TRACER.spanBuilder(spanName).startSpan();
-            try (Scope scope = span.makeCurrent()) {
-                span.addEvent("Executing operation: " + spanName);
-                T result = callable.call();
-                span.setStatus(StatusCode.OK);
-                return result;
-            } catch (Exception e) {
-                span.setStatus(StatusCode.ERROR, "Operation failed: " + e.getMessage());
-                span.recordException(e);
-                throw new OpenRaoException(e.getMessage());
-            } finally {
-                span.end();
-            }
-        } else {
-            try {
-                return callable.call();
-            } catch (Exception e) {
-                throw new OpenRaoException(e.getMessage());
-            }
-        }
-    }
-
-    public static void withSpan(String spanName, Runnable runnable) {
-        withSpan(spanName, runnable, false);
+    public static <T> T withSpan(String spanName, ThrowingFunction<OpenTelemetryContext, T> runnable) {
+        return doWithSpan(spanName, runnable);
     }
 
     /**
@@ -148,44 +131,48 @@ public final class OpenTelemetryReporter {
      * @param spanName The name of the span to create.
      * @param runnable The operation to execute, wrapped in a Runnable.
      */
-    public static void withSpan(String spanName, Runnable runnable, boolean error) {
-        var hasTracer = TRACER != null;
-        if (hasTracer) {
-            Span span = TRACER.spanBuilder(spanName).startSpan();
-            if (error) {
-                span.setStatus(StatusCode.ERROR);
-            }
-            try (Scope scope = span.makeCurrent()) {
-                span.addEvent("Executing operation: " + spanName);
-                runnable.run();
-                span.setStatus(StatusCode.OK);
-            } catch (Exception e) {
-                span.setStatus(StatusCode.ERROR, "Operation failed: " + e.getMessage());
-                span.recordException(e);
-                throw new OpenRaoException(e.getMessage());
-            } finally {
-                span.end();
-            }
-        } else {
-            runnable.run();
+    public static void withSpan(String spanName, ThrowingConsumer<OpenTelemetryContext> runnable) {
+        doWithSpan(spanName, ctx -> {
+            runnable.accept(ctx);
+            return null;
+        });
+    }
+
+    protected static <T> T doWithSpan(String spanName, ThrowingFunction<OpenTelemetryContext, T> callable) {
+        var ctx = new OpenTelemetryContext(TRACER, spanName);
+        try {
+            ctx.addEvent("Executing operation: " + spanName);
+            T result = callable.apply(ctx);
+            ctx.setStatus(StatusCode.OK);
+            return result;
+        } catch (Exception e) {
+            ctx.setStatus(StatusCode.ERROR, "Operation failed: " + e);
+            ctx.recordException(e);
+            throw new OpenRaoException(e.getMessage());
+        } finally {
+            ctx.end();
         }
     }
 
-    private static void doLog(boolean loggerEnabled, Consumer<String> logWriter, String format, Object... arguments) {
-        if (!loggerEnabled) {
-            return;
-        }
-        var msg = format(format, arguments);
-        if (TRACE_ALL_LOGS) {
-            OpenTelemetryReporter.withSpan(msg, () -> logWriter.accept(msg));
-        } else {
-            logWriter.accept(msg);
+    /**
+     *
+     * Runs the given task in an existing Open Telemetry Context, i.e. withSpan() has been called before
+     * This is necessary when running tasks in different Threads (e.g. using ForkJoinTask)
+     *
+     * @param cx
+     * @param task
+     */
+    public static <T> T inContext(OpenTelemetryContext cx, Callable<T> task)
+        throws Exception {
+        try (var scope = cx.makeCurrent()) {
+            return task.call();
         }
     }
 
-    private static String format(String pattern, Object[] args) {
-        // Use the SLF4J MessageFormatter's arrayFormat method
-        return MessageFormatter.arrayFormat(pattern, args).getMessage();
+    public static void inContext(OpenTelemetryContext cx, Runnable task) {
+        try (var scope = cx.makeCurrent()) {
+            task.run();
+        }
     }
 
     public static void trace(Logger logger, String format, Object... arguments) {
@@ -206,6 +193,25 @@ public final class OpenTelemetryReporter {
 
     public static void debug(Logger logger, String format, Object... arguments) {
         doLog(logger.isDebugEnabled(), logger::debug, format, arguments);
+    }
+
+    private static void doLog(boolean loggerEnabled, Consumer<String> logWriter, String format, Object... arguments) {
+        if (!loggerEnabled) {
+            return;
+        }
+        var msg = format(format, arguments);
+        if (TRACE_ALL_LOGS) {
+            OpenTelemetryReporter.withSpan(msg, cx -> {
+                logWriter.accept(msg);
+            });
+        } else {
+            logWriter.accept(msg);
+        }
+    }
+
+    private static String format(String pattern, Object[] args) {
+        // Use the SLF4J MessageFormatter's arrayFormat method
+        return MessageFormatter.arrayFormat(pattern, args).getMessage();
     }
 
 }

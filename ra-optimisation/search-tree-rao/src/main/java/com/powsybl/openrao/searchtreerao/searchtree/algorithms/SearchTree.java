@@ -96,7 +96,7 @@ public class SearchTree {
     }
 
     public CompletableFuture<OptimizationResult> run() {
-        return OpenTelemetryReporter.withSpan("rao.searchTree", () -> {
+        return OpenTelemetryReporter.withSpan("rao.searchTree", cx -> {
             String preSearchTreeVariantId = input.getNetwork().getVariantManager().getWorkingVariantId();
             input.getNetwork().getVariantManager().cloneVariant(preSearchTreeVariantId, SEARCH_TREE_WORKING_VARIANT_ID, true);
             input.getNetwork().getVariantManager().setWorkingVariant(SEARCH_TREE_WORKING_VARIANT_ID);
@@ -155,7 +155,7 @@ public class SearchTree {
     }
 
     void initLeaves(SearchTreeInput input) {
-        OpenTelemetryReporter.withSpan("rao.searchTree.initLeaves", () -> {
+        OpenTelemetryReporter.withSpan("rao.searchTree.initLeaves", cx -> {
             rootLeaf = makeLeaf(input.getOptimizationPerimeter(), input.getNetwork(), input.getPrePerimeterResult(), input.getPreOptimizationAppliedRemedialActions());
             optimalLeaf = rootLeaf;
             previousDepthOptimalLeaf = rootLeaf;
@@ -180,7 +180,7 @@ public class SearchTree {
 
         int leavesInParallel = Math.min(input.getOptimizationPerimeter().getNetworkActions().size(), parameters.getTreeParameters().leavesInParallel());
         TECHNICAL_LOGS.debug("Evaluating {} leaves in parallel", leavesInParallel);
-        OpenTelemetryReporter.withSpan("rao.evalLeavesInParallel", () -> {
+        OpenTelemetryReporter.withSpan("rao.evalLeavesInParallel", cx -> {
             int depth = 0;
             boolean hasImproved = true;
             try (AbstractNetworkPool networkPool = makeOpenRaoNetworkPool(input.getNetwork(), leavesInParallel)) {
@@ -216,28 +216,35 @@ public class SearchTree {
      */
     private void updateOptimalLeafWithNextDepthBestLeaf(AbstractNetworkPool networkPool) throws InterruptedException {
 
-        TreeSet<NetworkActionCombination> naCombinationsSorted = new TreeSet<>(this::deterministicNetworkActionCombinationComparison);
-        naCombinationsSorted.addAll(bloomer.bloom(optimalLeaf, input.getOptimizationPerimeter().getNetworkActions()));
-        int numberOfCombinations = naCombinationsSorted.size();
+        OpenTelemetryReporter.withSpan("rao.runMonitoring", cx -> {
 
-        networkPool.initClones(numberOfCombinations);
-        if (naCombinationsSorted.isEmpty()) {
-            TECHNICAL_LOGS.info("No more network action available");
-            return;
-        } else {
-            TECHNICAL_LOGS.info("Leaves to evaluate: {}", numberOfCombinations);
-        }
-        AtomicInteger remainingLeaves = new AtomicInteger(numberOfCombinations);
-        List<ForkJoinTask<Object>> tasks = naCombinationsSorted.stream().map(naCombination ->
-            networkPool.submit(() -> optimizeOneLeaf(networkPool, naCombination, remainingLeaves))
-        ).toList();
-        for (ForkJoinTask<Object> task : tasks) {
-            try {
-                task.get();
-            } catch (ExecutionException e) {
-                throw new OpenRaoException(e);
+            TreeSet<NetworkActionCombination> naCombinationsSorted = new TreeSet<>(
+                this::deterministicNetworkActionCombinationComparison);
+            naCombinationsSorted.addAll(
+                bloomer.bloom(optimalLeaf, input.getOptimizationPerimeter().getNetworkActions()));
+            int numberOfCombinations = naCombinationsSorted.size();
+
+            networkPool.initClones(numberOfCombinations);
+            if (naCombinationsSorted.isEmpty()) {
+                TECHNICAL_LOGS.info("No more network action available");
+                return;
+            } else {
+                TECHNICAL_LOGS.info("Leaves to evaluate: {}", numberOfCombinations);
             }
-        }
+            AtomicInteger remainingLeaves = new AtomicInteger(numberOfCombinations);
+            List<ForkJoinTask<Object>> tasks = naCombinationsSorted.stream().map(naCombination ->
+                networkPool.submit(cx,
+                    () -> optimizeOneLeaf(networkPool, naCombination, remainingLeaves))
+            ).toList();
+            for (ForkJoinTask<Object> task : tasks) {
+                try {
+                    task.get();
+                } catch (ExecutionException e) {
+                    throw new OpenRaoException(e);
+                }
+            }
+
+        });
     }
 
     private Object optimizeOneLeaf(AbstractNetworkPool networkPool, NetworkActionCombination naCombination, AtomicInteger remainingLeaves) throws InterruptedException {
@@ -369,7 +376,7 @@ public class SearchTree {
     }
 
     private void optimizeLeaf(Leaf leaf) {
-        OpenTelemetryReporter.withSpan("rao.searchTree.linearOptimization", () -> {
+        OpenTelemetryReporter.withSpan("rao.searchTree.linearOptimization", cx -> {
             if (!input.getOptimizationPerimeter().getRangeActions().isEmpty()) {
                 leaf.optimize(input, parameters);
                 if (!leaf.getStatus().equals(Leaf.Status.OPTIMIZED)) {

@@ -40,7 +40,7 @@ public class JsonExport implements Exporter {
 
     @Override
     public void exportData(Crac crac, OutputStream outputStream) {
-        OpenTelemetryReporter.withSpan("rao.exportJsonCrac", () -> {
+        OpenTelemetryReporter.withSpan("rao.exportJsonCrac", cx -> {
             try {
                 ObjectMapper objectMapper = createObjectMapper();
                 objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);

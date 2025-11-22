@@ -6,8 +6,8 @@
  */
 package com.powsybl.openrao.util;
 
-import io.opentelemetry.context.Context;
-import io.opentelemetry.context.Scope;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryContext;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import org.slf4j.MDC;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -21,14 +21,13 @@ public final class MCDContextWrapper {
 
     }
 
-    public static Runnable wrapWithMdcContext(Runnable task) {
+    public static Runnable wrapWithMdcContext(OpenTelemetryContext cx, Runnable task) {
         //save the current MDC context
         Map<String, String> contextMap = MDC.getCopyOfContextMap();
-        Context otelContext = Context.current();
         return () -> {
             setMDCContext(contextMap);
-            try (Scope scope = otelContext.makeCurrent()) {
-                task.run();
+            try {
+                OpenTelemetryReporter.inContext(cx, task);
             } finally {
                 // once the task is complete, clear MDC
                 MDC.clear();
@@ -36,14 +35,13 @@ public final class MCDContextWrapper {
         };
     }
 
-    public static <T> Callable<T> wrapWithMdcContext(Callable<T> task) {
+    public static <T> Callable<T> wrapWithMdcContext(OpenTelemetryContext cx, Callable<T> task) {
         //save the current MDC context
         Map<String, String> contextMap = MDC.getCopyOfContextMap();
-        Context otelContext = Context.current();
         return () -> {
             setMDCContext(contextMap);
-            try (Scope scope = otelContext.makeCurrent()) {
-                return task.call();
+            try {
+                return OpenTelemetryReporter.inContext(cx, task);
             } finally {
                 // once the task is complete, clear MDC
                 MDC.clear();

@@ -19,6 +19,7 @@ import com.powsybl.loadflow.LoadFlowResult;
 import com.powsybl.openrao.commons.OpenRaoException;
 import com.powsybl.openrao.commons.PhysicalParameter;
 import com.powsybl.openrao.commons.Unit;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.RemedialAction;
 import com.powsybl.openrao.data.crac.api.State;
@@ -77,75 +78,92 @@ public class Monitoring {
     }
 
     public MonitoringResult runMonitoring(MonitoringInput monitoringInput, int numberOfLoadFlowsInParallel) {
-        PhysicalParameter physicalParameter = monitoringInput.getPhysicalParameter();
-        Network inputNetwork = monitoringInput.getNetwork();
-        Crac crac = monitoringInput.getCrac();
-        RaoResult raoResult = monitoringInput.getRaoResult();
 
-        MonitoringResult monitoringResult = new MonitoringResult(physicalParameter, Collections.emptySet(), Collections.emptyMap(), Cnec.SecurityStatus.SECURE);
+        return OpenTelemetryReporter.withSpan("rao.runMonitoring", cx -> {
 
-        BUSINESS_LOGS.info("----- {} monitoring [start]", physicalParameter);
-        Set<Cnec> cnecs = crac.getCnecs(physicalParameter);
-        if (cnecs.isEmpty()) {
-            BUSINESS_WARNS.warn("No Cnecs of type '{}' defined.", physicalParameter);
-            BUSINESS_LOGS.info("----- {} monitoring [end]", physicalParameter);
-            return monitoringResult;
-        }
+            PhysicalParameter physicalParameter = monitoringInput.getPhysicalParameter();
+            Network inputNetwork = monitoringInput.getNetwork();
+            Crac crac = monitoringInput.getCrac();
+            RaoResult raoResult = monitoringInput.getRaoResult();
 
-        // I) Preventive state
-        State preventiveState = crac.getPreventiveState();
-        if (Objects.nonNull(preventiveState)) {
-            applyOptimalRemedialActions(preventiveState, inputNetwork, raoResult);
-            Set<Cnec> preventiveStateCnecs = crac.getCnecs(physicalParameter, preventiveState);
-            MonitoringResult preventiveStateMonitoringResult = monitorCnecs(preventiveState, preventiveStateCnecs, inputNetwork, monitoringInput);
-            preventiveStateMonitoringResult.printConstraints().forEach(BUSINESS_LOGS::info);
-            monitoringResult.combine(preventiveStateMonitoringResult);
-        }
+            MonitoringResult monitoringResult = new MonitoringResult(physicalParameter,
+                Collections.emptySet(), Collections.emptyMap(), Cnec.SecurityStatus.SECURE);
 
-        // II) Curative states
-        Set<State> contingencyStates = crac.getCnecs(physicalParameter).stream().map(Cnec::getState).filter(state -> !state.isPreventive()).collect(Collectors.toSet());
-        if (contingencyStates.isEmpty()) {
-            BUSINESS_LOGS.info("----- {} monitoring [end]", physicalParameter);
-            return monitoringResult;
-        }
+            BUSINESS_LOGS.info("----- {} monitoring [start]", physicalParameter);
+            Set<Cnec> cnecs = crac.getCnecs(physicalParameter);
+            if (cnecs.isEmpty()) {
+                BUSINESS_WARNS.warn("No Cnecs of type '{}' defined.", physicalParameter);
+                BUSINESS_LOGS.info("----- {} monitoring [end]", physicalParameter);
+                return monitoringResult;
+            }
 
-        try (AbstractNetworkPool networkPool = AbstractNetworkPool.create(inputNetwork, inputNetwork.getVariantManager().getWorkingVariantId(), Math.min(numberOfLoadFlowsInParallel, contingencyStates.size()), true)) {
-            List<ForkJoinTask<Object>> tasks = contingencyStates.stream().map(state ->
-                networkPool.submit(() -> {
-                    Network networkClone = networkPool.getAvailableNetwork();
+            // I) Preventive state
+            State preventiveState = crac.getPreventiveState();
+            if (Objects.nonNull(preventiveState)) {
+                applyOptimalRemedialActions(preventiveState, inputNetwork, raoResult);
+                Set<Cnec> preventiveStateCnecs = crac.getCnecs(physicalParameter, preventiveState);
+                MonitoringResult preventiveStateMonitoringResult = monitorCnecs(preventiveState,
+                    preventiveStateCnecs, inputNetwork, monitoringInput);
+                preventiveStateMonitoringResult.printConstraints().forEach(BUSINESS_LOGS::info);
+                monitoringResult.combine(preventiveStateMonitoringResult);
+            }
 
-                    Contingency contingency = state.getContingency().orElseThrow();
-                    if (!contingency.isValid(networkClone)) {
-                        monitoringResult.combine(makeFailedMonitoringResultForStateWithNaNCnecRsults(monitoringInput, physicalParameter, state, "Unable to apply contingency " + contingency.getId()));
+            // II) Curative states
+            Set<State> contingencyStates = crac.getCnecs(physicalParameter).stream()
+                .map(Cnec::getState).filter(state -> !state.isPreventive())
+                .collect(Collectors.toSet());
+            if (contingencyStates.isEmpty()) {
+                BUSINESS_LOGS.info("----- {} monitoring [end]", physicalParameter);
+                return monitoringResult;
+            }
+
+            try (AbstractNetworkPool networkPool = AbstractNetworkPool.create(inputNetwork,
+                inputNetwork.getVariantManager().getWorkingVariantId(),
+                Math.min(numberOfLoadFlowsInParallel, contingencyStates.size()), true)) {
+                List<ForkJoinTask<Object>> tasks = contingencyStates.stream().map(state ->
+                    networkPool.submit(cx, () -> {
+                        Network networkClone = networkPool.getAvailableNetwork();
+
+                        Contingency contingency = state.getContingency().orElseThrow();
+                        if (!contingency.isValid(networkClone)) {
+                            monitoringResult.combine(
+                                makeFailedMonitoringResultForStateWithNaNCnecRsults(monitoringInput,
+                                    physicalParameter, state,
+                                    "Unable to apply contingency " + contingency.getId()));
+                            networkPool.releaseUsedNetwork(networkClone);
+                            return null;
+                        }
+                        contingency.toModification().apply(networkClone, (ComputationManager) null);
+                        applyOptimalRemedialActionsOnContingencyState(state, networkClone, crac,
+                            raoResult);
+                        Set<Cnec> currentStateCnecs = crac.getCnecs(physicalParameter, state);
+                        MonitoringResult currentStateMonitoringResult = monitorCnecs(state,
+                            currentStateCnecs, networkClone, monitoringInput);
+                        currentStateMonitoringResult.printConstraints()
+                            .forEach(BUSINESS_LOGS::info);
+                        monitoringResult.combine(currentStateMonitoringResult);
                         networkPool.releaseUsedNetwork(networkClone);
                         return null;
+                    })).toList();
+
+                for (ForkJoinTask<Object> task : tasks) {
+                    try {
+                        task.get();
+                    } catch (ExecutionException e) {
+                        throw new OpenRaoException(e);
                     }
-                    contingency.toModification().apply(networkClone, (ComputationManager) null);
-                    applyOptimalRemedialActionsOnContingencyState(state, networkClone, crac, raoResult);
-                    Set<Cnec> currentStateCnecs = crac.getCnecs(physicalParameter, state);
-                    MonitoringResult currentStateMonitoringResult = monitorCnecs(state, currentStateCnecs, networkClone, monitoringInput);
-                    currentStateMonitoringResult.printConstraints().forEach(BUSINESS_LOGS::info);
-                    monitoringResult.combine(currentStateMonitoringResult);
-                    networkPool.releaseUsedNetwork(networkClone);
-                    return null;
-                })).toList();
-
-            for (ForkJoinTask<Object> task : tasks) {
-                try {
-                    task.get();
-                } catch (ExecutionException e) {
-                    throw new OpenRaoException(e);
                 }
+                networkPool.shutdownAndAwaitTermination(24, TimeUnit.HOURS);
+            } catch (Exception e) {
+                Thread.currentThread().interrupt();
+                monitoringResult.setStatusToFailure();
             }
-            networkPool.shutdownAndAwaitTermination(24, TimeUnit.HOURS);
-        } catch (Exception e) {
-            Thread.currentThread().interrupt();
-            monitoringResult.setStatusToFailure();
-        }
 
-        BUSINESS_LOGS.info("----- {} monitoring [end]", physicalParameter);
-        monitoringResult.printConstraints().forEach(BUSINESS_LOGS::info);
-        return monitoringResult;
+            BUSINESS_LOGS.info("----- {} monitoring [end]", physicalParameter);
+            monitoringResult.printConstraints().forEach(BUSINESS_LOGS::info);
+            return monitoringResult;
+
+        });
     }
 
     private MonitoringResult monitorCnecs(State state, Set<Cnec> cnecs, Network network, MonitoringInput monitoringInput) {

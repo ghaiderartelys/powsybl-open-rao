@@ -73,7 +73,7 @@ public class RaoResultJsonExporter implements Exporter {
 
     @Override
     public void exportData(RaoResult raoResult, Crac crac, Properties properties, OutputStream outputStream) {
-        OpenTelemetryReporter.withSpan("rao.exportJsonCrac", () -> {
+        OpenTelemetryReporter.withSpan("rao.exportJsonCrac", cx -> {
             boolean flowsInAmperes = Boolean.parseBoolean(properties.getProperty(JSON_EXPORT_PROPERTIES_PREFIX + FLOWS_IN_AMPERES, "false"));
             boolean flowsInMegawatts = Boolean.parseBoolean(properties.getProperty(JSON_EXPORT_PROPERTIES_PREFIX + FLOWS_IN_MEGAWATTS, "false"));
             if (!flowsInAmperes && !flowsInMegawatts) {

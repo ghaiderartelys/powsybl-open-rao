@@ -67,7 +67,7 @@ public class JsonImport implements Importer {
 
     @Override
     public CracCreationContext importData(InputStream inputStream, CracCreationParameters cracCreationParameters, Network network) {
-        return OpenTelemetryReporter.withSpan("rao.importJsonCrac", () -> {
+        return OpenTelemetryReporter.withSpan("rao.importJsonCrac", cx -> {
             if (network == null) {
                 throw new OpenRaoException(
                     "Network object is null but it is needed to map contingency's elements");

@@ -201,7 +201,7 @@ public final class ToolProvider {
     }
 
     public static ToolProvider buildFromRaoInputAndParameters(RaoInput raoInput, RaoParameters raoParameters) {
-        return OpenTelemetryReporter.withSpan("rao.buildToolProvider", () -> {
+        return OpenTelemetryReporter.withSpan("rao.buildToolProvider", cx -> {
             ToolProvider.ToolProviderBuilder toolProviderBuilder = ToolProvider.create()
                 .withNetwork(raoInput.getNetwork())
                 .withRaoParameters(raoParameters);

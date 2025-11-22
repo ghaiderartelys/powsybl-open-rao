@@ -204,7 +204,7 @@ public class CastorFullOptimization {
     }
 
     private PostPerimeterResult computePostPreventiveResult(ToolProvider toolProvider, PrePerimeterResult initialOutput, OptimizationResult preventiveResult) {
-        return OpenTelemetryReporter.withSpan("rao.postPreventiveEvaluation", () -> {
+        return OpenTelemetryReporter.withSpan("rao.postPreventiveEvaluation", cx -> {
             PostPerimeterResult postPreventiveResult;
             try {
                 postPreventiveResult = new PostPerimeterSensitivityAnalysis(crac, crac.getFlowCnecs(), crac.getRangeActions(), raoParameters, toolProvider)
@@ -293,7 +293,7 @@ public class CastorFullOptimization {
     }
 
     private OneStateOnlyRaoResultImpl optimizePreventivePerimeter(StateTree stateTree, ToolProvider toolProvider, PrePerimeterResult initialResult) {
-        return OpenTelemetryReporter.withSpan("rao.optimizePreventivePerimeter", () -> {
+        return OpenTelemetryReporter.withSpan("rao.optimizePreventivePerimeter", cx -> {
             PreventiveOptimizationPerimeter optPerimeter = PreventiveOptimizationPerimeter.buildFromBasecaseScenario(stateTree.getBasecaseScenario(), crac, network, raoParameters, initialResult);
 
             SearchTreeParameters searchTreeParameters = SearchTreeParameters.create()

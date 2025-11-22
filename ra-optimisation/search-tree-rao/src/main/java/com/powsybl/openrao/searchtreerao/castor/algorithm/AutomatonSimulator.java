@@ -114,7 +114,7 @@ public final class AutomatonSimulator {
      * Returns an AutomatonPerimeterResult
      */
     AutomatonPerimeterResultImpl simulateAutomatonState(State automatonState, Set<State> curativeStates, Network network) {
-        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.simulateAutomatonState", () -> {
+        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.simulateAutomatonState", cx -> {
             TECHNICAL_LOGS.info("Optimizing automaton state {}.", automatonState.getId());
 
             PrePerimeterSensitivityAnalysis preAutoPstOptimizationSensitivityAnalysis = getPreAutoPerimeterSensitivityAnalysis(automatonState, curativeStates);
@@ -180,7 +180,7 @@ public final class AutomatonSimulator {
     }
 
     private PrePerimeterSensitivityAnalysis getPreAutoPerimeterSensitivityAnalysis(State automatonState, Set<State> curativeStates) {
-        return OpenTelemetryReporter.withSpan("rao.preAutoPerimeterSensitivityAnalysis", () -> {
+        return OpenTelemetryReporter.withSpan("rao.preAutoPerimeterSensitivityAnalysis", cx -> {
             Set<FlowCnec> flowCnecsInSensi = crac.getFlowCnecs(automatonState);
             Set<RangeAction<?>> rangeActionsInSensi = new HashSet<>(crac.getRangeActions(automatonState, UsageMethod.FORCED));
             for (State curativeState : curativeStates) {
@@ -226,7 +226,7 @@ public final class AutomatonSimulator {
      * -- and the set of applied network actions.
      */
     TopoAutomatonSimulationResult simulateTopologicalAutomatons(State automatonState, Network network, PrePerimeterSensitivityAnalysis preAutoPstOptimizationSensitivityAnalysis, int speed, Set<NetworkAction> previouslyActivatedTopologicalAutomatons, PrePerimeterResult preAutomatonsPerimeterResult) {
-        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.simulateAutomatonState.simulateTopologicalAutomatons", () -> {
+        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.simulateAutomatonState.simulateTopologicalAutomatons", cx -> {
             // -- Apply network actions
             // -- First get forced network actions
             Set<FlowCnec> flowCnecs = crac.getFlowCnecs(automatonState);
@@ -281,7 +281,7 @@ public final class AutomatonSimulator {
     }
 
     RangeAutomatonSimulationResult simulateRangeAutomatons(State automatonState, Set<State> curativeStates, Network network, PrePerimeterSensitivityAnalysis preAutoPerimeterSensitivityAnalysis, PrePerimeterResult postTopoResult, int speed, Set<RangeAction<?>> previouslyAppliedRangeAutomatons, Map<RangeAction<?>, Double> initialSetPoints, Map<RangeAction<?>, Double> setPoints) {
-        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.simulateAutomatonState.simulateRangeAutomatons", () -> {
+        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.simulateAutomatonState.simulateRangeAutomatons", cx -> {
             PrePerimeterResult finalPostAutoResult = postTopoResult;
             // -- Create groups of aligned range actions
             List<List<RangeAction<?>>> rangeActionsOnAutomatonState = buildRangeActionsGroupsForSpeed(finalPostAutoResult, automatonState, network, speed);
@@ -566,7 +566,7 @@ public final class AutomatonSimulator {
                                                                          PrePerimeterSensitivityAnalysis preAutoPerimeterSensitivityAnalysis,
                                                                          PrePerimeterResult prePerimeterSensitivityOutput,
                                                                          State automatonState) {
-        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.simulateAutomatonState.simulateRangeAutomatons.optimizeRangeAutomatons", () -> {
+        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.simulateAutomatonState.simulateRangeAutomatons.optimizeRangeAutomatons", cx -> {
             Set<Pair<FlowCnec, TwoSides>> flowCnecsToBeExcluded = new HashSet<>();
             PrePerimeterResult automatonRangeActionOptimizationSensitivityAnalysisOutput = prePerimeterSensitivityOutput;
             Map<RangeAction<?>, Double> activatedRangeActionsWithInitialSetpoint = new HashMap<>();

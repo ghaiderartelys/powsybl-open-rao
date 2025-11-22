@@ -49,7 +49,7 @@ public class RaoResultJsonImporter implements Importer {
 
     @Override
     public RaoResult importData(InputStream inputStream, Crac crac) {
-        return OpenTelemetryReporter.withSpan("rao.importJsonRaoResult", () -> {
+        return OpenTelemetryReporter.withSpan("rao.importJsonRaoResult", cx -> {
             try {
                 ObjectMapper objectMapper = createObjectMapper();
                 SimpleModule module = new SimpleModule();

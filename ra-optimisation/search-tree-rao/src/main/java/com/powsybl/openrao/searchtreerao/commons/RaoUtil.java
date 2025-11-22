@@ -51,7 +51,7 @@ public final class RaoUtil {
     }
 
     public static void initData(RaoInput raoInput, RaoParameters raoParameters) {
-        OpenTelemetryReporter.withSpan("rao.initData", () -> {
+        OpenTelemetryReporter.withSpan("rao.initData", cx -> {
             checkParameters(raoParameters, raoInput);
             initNetwork(raoInput.getNetwork(), raoInput.getNetworkVariantId());
         });
@@ -219,7 +219,7 @@ public final class RaoUtil {
     }
 
     public static void applyRemedialActions(Network network, OptimizationResult optResult, State state) {
-        OpenTelemetryReporter.withSpan("rao.applyRemedialActions", () -> {
+        OpenTelemetryReporter.withSpan("rao.applyRemedialActions", cx -> {
             optResult.getActivatedNetworkActions().forEach(networkAction -> networkAction.apply(network));
             optResult.getActivatedRangeActions(state).forEach(rangeAction -> rangeAction.apply(network, optResult.getOptimizedSetpoint(rangeAction, state)));
         });
