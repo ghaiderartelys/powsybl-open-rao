@@ -11,7 +11,6 @@ import com.powsybl.iidm.network.VariantManagerConstants;
 import com.powsybl.iidm.serde.NetworkSerDe;
 import com.powsybl.openrao.commons.OpenRaoException;
 
-import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
