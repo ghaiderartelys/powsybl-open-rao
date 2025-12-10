@@ -180,7 +180,7 @@ public class SearchTree {
 
         int leavesInParallel = Math.min(input.getOptimizationPerimeter().getNetworkActions().size(), parameters.getTreeParameters().leavesInParallel());
         TECHNICAL_LOGS.debug("Evaluating {} leaves in parallel", leavesInParallel);
-        OpenTelemetryReporter.withSpan("rao.evalLeavesInParallel", cx -> {
+        OpenTelemetryReporter.withSpan("rao.searchTree.iterateOnTree", cx -> {
             int depth = 0;
             boolean hasImproved = true;
             try (AbstractNetworkPool networkPool = makeOpenRaoNetworkPool(input.getNetwork(), leavesInParallel)) {
