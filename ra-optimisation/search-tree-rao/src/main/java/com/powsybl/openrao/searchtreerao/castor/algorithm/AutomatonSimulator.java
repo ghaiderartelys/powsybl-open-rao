@@ -180,7 +180,7 @@ public final class AutomatonSimulator {
     }
 
     private PrePerimeterSensitivityAnalysis getPreAutoPerimeterSensitivityAnalysis(State automatonState, Set<State> curativeStates) {
-        return OpenTelemetryReporter.withSpan("rao.preAutoPerimeterSensitivityAnalysis", cx -> {
+        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.simulateAutomatonState.preAutoPerimeterSensitivityAnalysis", cx -> {
             Set<FlowCnec> flowCnecsInSensi = crac.getFlowCnecs(automatonState);
             Set<RangeAction<?>> rangeActionsInSensi = new HashSet<>(crac.getRangeActions(automatonState, UsageMethod.FORCED));
             for (State curativeState : curativeStates) {

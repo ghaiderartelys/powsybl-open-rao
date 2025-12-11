@@ -52,7 +52,9 @@ public class MultipleNetworkPool extends AbstractNetworkPool {
 
     @Override
     public void initClones(int desiredNumberOfClones) {
+
         OpenTelemetryReporter.withSpan("rao.multipleNetworkPool.initClones", cx -> {
+
             int requiredClones = Math.min(getParallelism(), desiredNumberOfClones);
             int clonesToAdd = requiredClones - networkNumberOfClones;
 
@@ -92,6 +94,7 @@ public class MultipleNetworkPool extends AbstractNetworkPool {
                 Thread.currentThread().interrupt();
             }
             network.getVariantManager().setWorkingVariant(initialVariant);
+
         });
     }
 

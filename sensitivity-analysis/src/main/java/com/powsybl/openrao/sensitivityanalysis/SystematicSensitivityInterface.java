@@ -161,14 +161,11 @@ public final class SystematicSensitivityInterface {
      * SensitivityComputationException is the computation fails.
      */
     private SystematicSensitivityResult runWithConfig(Network network) {
-        return OpenTelemetryReporter.withSpan("rao.systematicSA.runWithConfig", cx -> {
-            SystematicSensitivityResult tempSystematicSensitivityAnalysisResult = SystematicSensitivityAdapter
-                    .runSensitivity(network, cnecSensitivityProvider, appliedRemedialActions, parameters, sensitivityProvider, outageInstant);
-
-            if (!tempSystematicSensitivityAnalysisResult.isSuccess()) {
-                TECHNICAL_LOGS.error("Sensitivity analysis failed: no output data available.");
-            }
-            return tempSystematicSensitivityAnalysisResult;
-        });
+        SystematicSensitivityResult tempSystematicSensitivityAnalysisResult = SystematicSensitivityAdapter.runSensitivity(network, cnecSensitivityProvider, appliedRemedialActions, parameters, sensitivityProvider, outageInstant);
+        if (!tempSystematicSensitivityAnalysisResult.isSuccess()) {
+            TECHNICAL_LOGS.error("Sensitivity analysis failed: no output data available.");
+        }
+        return tempSystematicSensitivityAnalysisResult;
     }
+
 }

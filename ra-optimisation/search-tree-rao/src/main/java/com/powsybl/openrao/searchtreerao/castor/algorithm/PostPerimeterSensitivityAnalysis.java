@@ -7,6 +7,7 @@
 package com.powsybl.openrao.searchtreerao.castor.algorithm;
 
 import com.powsybl.iidm.network.Network;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.State;
 import com.powsybl.openrao.data.crac.api.cnec.FlowCnec;
@@ -61,45 +62,46 @@ public class PostPerimeterSensitivityAnalysis extends AbstractMultiPerimeterSens
                                                                                        Set<String> operatorsNotSharingCras,
                                                                                        OptimizationResult optimizationResult,
                                                                                        AppliedRemedialActions appliedCurativeRemedialActions) {
+        return OpenTelemetryReporter.withSpan("rao.runBasedOnInitialPreviousAndOptimizationResults", cx -> {
+            AtomicReference<FlowResult> flowResult = new AtomicReference<>();
+            AtomicReference<SensitivityResult> sensitivityResult = new AtomicReference<>();
+            boolean actionWasTaken = actionWasTaken(optimizationResult);
+            if (actionWasTaken) {
+                SensitivityComputer sensitivityComputer = buildSensitivityComputer(initialFlowResult, appliedCurativeRemedialActions);
 
-        AtomicReference<FlowResult> flowResult = new AtomicReference<>();
-        AtomicReference<SensitivityResult> sensitivityResult = new AtomicReference<>();
-        boolean actionWasTaken = actionWasTaken(optimizationResult);
-        if (actionWasTaken) {
-            SensitivityComputer sensitivityComputer = buildSensitivityComputer(initialFlowResult, appliedCurativeRemedialActions);
-
-            sensitivityComputer.compute(network);
-            flowResult.set(sensitivityComputer.getBranchResult(network));
-            sensitivityResult.set(sensitivityComputer.getSensitivityResult());
-        }
-
-        // Thread is executed once previousResultsFuture is fetched
-        return Executors.newSingleThreadExecutor().submit(() -> {
-            if (!actionWasTaken) {
-                flowResult.set(previousResultsFuture.get());
-                sensitivityResult.set(previousResultsFuture.get());
+                sensitivityComputer.compute(network);
+                flowResult.set(sensitivityComputer.getBranchResult(network));
+                sensitivityResult.set(sensitivityComputer.getSensitivityResult());
             }
-            ObjectiveFunction objectiveFunction = ObjectiveFunction.build(
-                flowCnecs,
-                toolProvider.getLoopFlowCnecs(flowCnecs),
-                initialFlowResult,
-                previousResultsFuture.get(),
-                operatorsNotSharingCras,
-                raoParameters,
-                optimizationResult.getActivatedRangeActionsPerState().keySet()
-            );
 
-            ObjectiveFunctionResult objectiveFunctionResult = objectiveFunction.evaluate(
-                flowResult.get(),
-                new RemedialActionActivationResultImpl(optimizationResult, optimizationResult)
-            );
+            // Thread is executed once previousResultsFuture is fetched
+            return Executors.newSingleThreadExecutor().submit(() -> {
+                if (!actionWasTaken) {
+                    flowResult.set(previousResultsFuture.get());
+                    sensitivityResult.set(previousResultsFuture.get());
+                }
+                ObjectiveFunction objectiveFunction = ObjectiveFunction.build(
+                    flowCnecs,
+                    toolProvider.getLoopFlowCnecs(flowCnecs),
+                    initialFlowResult,
+                    previousResultsFuture.get(),
+                    operatorsNotSharingCras,
+                    raoParameters,
+                    optimizationResult.getActivatedRangeActionsPerState().keySet()
+                );
 
-            return new PostPerimeterResult(optimizationResult, new PrePerimeterSensitivityResultImpl(
-                flowResult.get(),
-                sensitivityResult.get(),
-                RangeActionSetpointResultImpl.buildWithSetpointsFromNetwork(network, rangeActions),
-                objectiveFunctionResult
-            ));
+                ObjectiveFunctionResult objectiveFunctionResult = objectiveFunction.evaluate(
+                    flowResult.get(),
+                    new RemedialActionActivationResultImpl(optimizationResult, optimizationResult)
+                );
+
+                return new PostPerimeterResult(optimizationResult, new PrePerimeterSensitivityResultImpl(
+                    flowResult.get(),
+                    sensitivityResult.get(),
+                    RangeActionSetpointResultImpl.buildWithSetpointsFromNetwork(network, rangeActions),
+                    objectiveFunctionResult
+                ));
+            });
         });
     }
 
