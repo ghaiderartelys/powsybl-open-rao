@@ -150,7 +150,7 @@ public final class IteratingLinearOptimizer {
     }
 
     private static LinearProblemStatus solveLinearProblem(LinearProblem linearProblem, int iteration) {
-        return OpenTelemetryReporter.withSpan("rao.iteratingLinearSolver.solveLinearProblem", () -> {
+        return OpenTelemetryReporter.withSpan("rao.iteratingLinearSolver.solveLinearProblem", cx -> {
             TECHNICAL_LOGS.debug("Iteration {}: linear optimization [start]", iteration);
             LinearProblemStatus status = linearProblem.solve();
             TECHNICAL_LOGS.debug("Iteration {}: linear optimization [end]", iteration);

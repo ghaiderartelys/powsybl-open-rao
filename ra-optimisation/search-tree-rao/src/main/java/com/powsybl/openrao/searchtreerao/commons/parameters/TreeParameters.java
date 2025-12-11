@@ -51,7 +51,7 @@ public record TreeParameters(StopCriterion stopCriterion, double targetObjective
     }
 
     public static TreeParameters buildForCurativePerimeter(RaoParameters parameters, Double preventiveOptimizedCost) {
-        return OpenTelemetryReporter.withSpan("rao.buildCurativePerimeter", () -> {
+        return OpenTelemetryReporter.withSpan("rao.buildCurativePerimeter", cx -> {
             StopCriterion stopCriterion = StopCriterion.AT_TARGET_OBJECTIVE_VALUE;
             double targetObjectiveValue;
             if (parameters.getObjectiveFunctionParameters().getType() == ObjectiveFunctionParameters.ObjectiveFunctionType.SECURE_FLOW) {

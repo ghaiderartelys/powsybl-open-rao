@@ -76,7 +76,7 @@ public class CastorContingencyScenarios {
     public Map<State, PostPerimeterResult> optimizeContingencyScenarios(Network network,
                                                                        PrePerimeterResult prePerimeterSensitivityOutput,
                                                                        boolean automatonsOnly) {
-        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios", () -> {
+        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios", cx -> {
             Map<State, PostPerimeterResult> contingencyScenarioResults = new ConcurrentHashMap<>();
             // Create a new variant
             String newVariant = RandomizedString.getRandomizedString(CONTINGENCY_SCENARIO, network.getVariantManager().getVariantIds(), 10);
@@ -88,7 +88,7 @@ public class CastorContingencyScenarios {
             try (AbstractNetworkPool networkPool = AbstractNetworkPool.create(network, newVariant, getAvailableCPUs(raoParameters), true)) {
                 AtomicInteger remainingScenarios = new AtomicInteger(stateTree.getContingencyScenarios().size());
                 List<ForkJoinTask<Object>> tasks = stateTree.getContingencyScenarios().stream().map(optimizedScenario ->
-                        networkPool.submit(() -> runScenario(prePerimeterSensitivityOutput, automatonsOnly, optimizedScenario, networkPool, automatonSimulator, contingencyScenarioResults, remainingScenarios))
+                    networkPool.submit(cx, () -> runScenario(prePerimeterSensitivityOutput, automatonsOnly, optimizedScenario, networkPool, automatonSimulator, contingencyScenarioResults, remainingScenarios))
                 ).toList();
                 for (ForkJoinTask<Object> task : tasks) {
                     try {
@@ -106,7 +106,7 @@ public class CastorContingencyScenarios {
     }
 
     private Object runScenario(PrePerimeterResult prePerimeterSensitivityOutput, boolean automatonsOnly, ContingencyScenario optimizedScenario, AbstractNetworkPool networkPool, AutomatonSimulator automatonSimulator, Map<State, PostPerimeterResult> contingencyScenarioResults, AtomicInteger remainingScenarios) throws InterruptedException {
-        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario", () -> {
+        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario", cx -> {
             Network networkClone = networkPool.getAvailableNetwork(); //This is where the threads actually wait for available networks
             TECHNICAL_LOGS.info("Optimizing scenario post-contingency {}.", optimizedScenario.getContingency().getId());
 
@@ -182,7 +182,7 @@ public class CastorContingencyScenarios {
     }
 
     private PostPerimeterResult getResultPostState(State state, Network networkClone, PrePerimeterResult prePerimeterSensitivityOutput, OptimizationResult optimizationResult) {
-        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.postAutoEvaluation", () -> {
+        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.postAutoEvaluation", cx -> {
             // if it's the last instant, no need to recompute things because the optimization result already contains all following states. (none)
             if (state.getInstant().equals(crac.getLastInstant())) {
                 return new PostPerimeterResult(optimizationResult,
@@ -223,7 +223,7 @@ public class CastorContingencyScenarios {
                                                          PrePerimeterResult prePerimeterSensitivityOutput,
                                                          Map<State, OptimizationResult> resultsPerPerimeter,
                                                          Map<State, PrePerimeterResult> prePerimeterResultPerPerimeter) {
-        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.optimizeCurativePerimeter", () -> {
+        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.optimizeCurativePerimeter", cx -> {
             State curativeState = curativePerimeter.getRaOptimisationState();
             TECHNICAL_LOGS.info("Optimizing curative state {}.", curativeState.getId());
 

@@ -147,7 +147,7 @@ public final class SystematicSensitivityInterface {
      * SystematicSensitivityResult to the given network variant.
      */
     public SystematicSensitivityResult run(Network network) {
-        return OpenTelemetryReporter.withSpan("rao.systematicSA.run", () -> {
+        return OpenTelemetryReporter.withSpan("rao.systematicSA.run", cx -> {
             SystematicSensitivityResult result = runWithConfig(network);
             if (!result.isSuccess()) {
                 BUSINESS_WARNS.warn("Sensitivity analysis failed.");
@@ -161,7 +161,7 @@ public final class SystematicSensitivityInterface {
      * SensitivityComputationException is the computation fails.
      */
     private SystematicSensitivityResult runWithConfig(Network network) {
-        return OpenTelemetryReporter.withSpan("rao.systematicSA.runWithConfig", () -> {
+        return OpenTelemetryReporter.withSpan("rao.systematicSA.runWithConfig", cx -> {
             SystematicSensitivityResult tempSystematicSensitivityAnalysisResult = SystematicSensitivityAdapter
                     .runSensitivity(network, cnecSensitivityProvider, appliedRemedialActions, parameters, sensitivityProvider, outageInstant);
 

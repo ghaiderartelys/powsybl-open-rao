@@ -173,7 +173,7 @@ public class OpenRaoMPSolver {
     }
 
     public LinearProblemStatus solve() {
-        return OpenTelemetryReporter.withSpan("rao.mpsolver.solve", () -> {
+        return OpenTelemetryReporter.withSpan("rao.mpsolver.solve", cx -> {
             if (OpenRaoLoggerProvider.TECHNICAL_LOGS.isTraceEnabled()) {
                 mpSolver.enableOutput();
             }
