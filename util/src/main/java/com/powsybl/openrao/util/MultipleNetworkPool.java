@@ -11,6 +11,7 @@ import com.powsybl.iidm.network.VariantManagerConstants;
 import com.powsybl.iidm.serde.NetworkSerDe;
 import com.powsybl.openrao.commons.OpenRaoException;
 
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -51,41 +52,50 @@ public class MultipleNetworkPool extends AbstractNetworkPool {
 
     @Override
     public void initClones(int desiredNumberOfClones) {
-        int requiredClones = Math.min(getParallelism(), desiredNumberOfClones);
-        int clonesToAdd = requiredClones - networkNumberOfClones;
 
-        if (clonesToAdd == 0) {
-            return;
-        }
+        OpenTelemetryReporter.withSpan("rao.multipleNetworkPool.initClones", cx -> {
 
-        TECHNICAL_LOGS.debug("Filling network pool with {} new cop{} of network {} on variant {}", clonesToAdd, clonesToAdd == 1 ? "y" : "ies", network.getId(), targetVariant);
+            int requiredClones = Math.min(getParallelism(), desiredNumberOfClones);
+            int clonesToAdd = requiredClones - networkNumberOfClones;
 
-        String initialVariant = network.getVariantManager().getWorkingVariantId();
-        network.getVariantManager().setWorkingVariant(targetVariant);
-
-        AtomicInteger remainingClones = new AtomicInteger(requiredClones);
-        List<ForkJoinTask<Network>> tasks = new ArrayList<>();
-        try {
-            for (int i = networkNumberOfClones; i < requiredClones; i++) {
-                int finalI = i;
-                tasks.add(this.submit(() -> createNetworkCopy(finalI, remainingClones)));
+            if (clonesToAdd == 0) {
+                return;
             }
-            for (ForkJoinTask<Network> task : tasks) {
-                try {
-                    boolean isSuccess = networksQueue.offer(task.get());
-                    if (!isSuccess) {
-                        throw new OpenRaoException(String.format("Cannot offer copy n°'%d' in pool. Should not happen", networkNumberOfClones + 1));
-                    } else {
-                        networkNumberOfClones++;
-                    }
-                } catch (ExecutionException e) {
-                    throw new OpenRaoException(e);
+
+            TECHNICAL_LOGS.debug(
+                "Filling network pool with {} new cop{} of network {} on variant {}", clonesToAdd,
+                clonesToAdd == 1 ? "y" : "ies", network.getId(), targetVariant);
+
+            String initialVariant = network.getVariantManager().getWorkingVariantId();
+            network.getVariantManager().setWorkingVariant(targetVariant);
+
+            AtomicInteger remainingClones = new AtomicInteger(requiredClones);
+            List<ForkJoinTask<Network>> tasks = new ArrayList<>();
+            try {
+                for (int i = networkNumberOfClones; i < requiredClones; i++) {
+                    int finalI = i;
+                    tasks.add(this.submit(cx, () -> createNetworkCopy(finalI, remainingClones)));
                 }
+                for (ForkJoinTask<Network> task : tasks) {
+                    try {
+                        boolean isSuccess = networksQueue.offer(task.get());
+                        if (!isSuccess) {
+                            throw new OpenRaoException(
+                                String.format("Cannot offer copy n°'%d' in pool. Should not happen",
+                                    networkNumberOfClones + 1));
+                        } else {
+                            networkNumberOfClones++;
+                        }
+                    } catch (ExecutionException e) {
+                        throw new OpenRaoException(e);
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        network.getVariantManager().setWorkingVariant(initialVariant);
+            network.getVariantManager().setWorkingVariant(initialVariant);
+
+        });
     }
 
     private Network createNetworkCopy(int finalI, AtomicInteger remainingClones) {
