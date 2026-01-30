@@ -8,6 +8,7 @@
 package com.powsybl.openrao.searchtreerao.castor.algorithm;
 
 import com.powsybl.openrao.commons.OpenRaoException;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.Instant;
 import com.powsybl.openrao.data.crac.api.State;
@@ -52,6 +53,7 @@ import static com.powsybl.openrao.searchtreerao.commons.HvdcUtils.getHvdcRangeAc
 import static com.powsybl.openrao.searchtreerao.commons.RaoLogger.formatDoubleBasedOnMargin;
 import static com.powsybl.openrao.searchtreerao.commons.RaoLogger.getVirtualCostDetailed;
 import static com.powsybl.openrao.searchtreerao.commons.RaoUtil.applyRemedialActions;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 
 /**
  * @author Joris Mancini {@literal <joris.mancini at rte-france.com>}
@@ -276,16 +278,18 @@ public class CastorFullOptimization {
     }
 
     private PostPerimeterResult computePostPreventiveResult(ToolProvider toolProvider, PrePerimeterResult initialOutput, OptimizationResult preventiveResult) {
-        PostPerimeterResult postPreventiveResult;
-        try {
-            postPreventiveResult = new PostPerimeterSensitivityAnalysis(crac, crac.getFlowCnecs(), crac.getRangeActions(), raoParameters, toolProvider)
-                .runBasedOnInitialPreviousAndOptimizationResults(network, initialOutput, CompletableFuture.completedFuture(initialOutput), Collections.emptySet(), preventiveResult, null)
-                .get();
-        } catch (InterruptedException | ExecutionException e) {
-            Thread.currentThread().interrupt();
-            throw new OpenRaoException("Exception during post preventive sensitivity analysis", e);
-        }
-        return postPreventiveResult;
+        return OpenTelemetryReporter.withSpan("rao.postPreventiveEvaluation", cx -> {
+            PostPerimeterResult postPreventiveResult;
+            try {
+                postPreventiveResult = new PostPerimeterSensitivityAnalysis(crac, crac.getFlowCnecs(), crac.getRangeActions(), raoParameters, toolProvider)
+                    .runBasedOnInitialPreviousAndOptimizationResults(network, initialOutput, CompletableFuture.completedFuture(initialOutput), Collections.emptySet(), preventiveResult, null)
+                    .get();
+            } catch (InterruptedException | ExecutionException e) {
+                Thread.currentThread().interrupt();
+                throw new OpenRaoException("Exception during post preventive sensitivity analysis", e);
+            }
+            return postPreventiveResult;
+        });
     }
 
     private boolean shouldStopOptimisationIfPreventiveUnsecure(double preventiveOptimalCost) {
@@ -364,40 +368,42 @@ public class CastorFullOptimization {
 
     private Pair<OptimizationResult, Set<FlowCnec>> optimizePreventivePerimeter(StateTree stateTree, ToolProvider toolProvider, PrePerimeterResult initialResult) {
 
-        PreventiveOptimizationPerimeter optPerimeter = PreventiveOptimizationPerimeter.buildFromBasecaseScenario(stateTree.getBasecaseScenario(), crac, network, raoParameters, initialResult);
+        return OpenTelemetryReporter.withSpan("rao.optimizePreventivePerimeter", cx -> {
+            PreventiveOptimizationPerimeter optPerimeter = PreventiveOptimizationPerimeter.buildFromBasecaseScenario(stateTree.getBasecaseScenario(), crac, network, raoParameters, initialResult);
 
-        SearchTreeParameters.SearchTreeParametersBuilder searchTreeParametersBuilder = SearchTreeParameters.create()
-            .withConstantParametersOverAllRao(raoParameters, crac)
-            .withTreeParameters(TreeParameters.buildForPreventivePerimeter(raoParameters))
-            .withUnoptimizedCnecParameters(UnoptimizedCnecParameters.build(raoParameters.getNotOptimizedCnecsParameters(), stateTree.getOperatorsNotSharingCras()));
+            SearchTreeParameters.SearchTreeParametersBuilder searchTreeParametersBuilder = SearchTreeParameters.create()
+                .withConstantParametersOverAllRao(raoParameters, crac)
+                .withTreeParameters(TreeParameters.buildForPreventivePerimeter(raoParameters))
+                .withUnoptimizedCnecParameters(UnoptimizedCnecParameters.build(raoParameters.getNotOptimizedCnecsParameters(), stateTree.getOperatorsNotSharingCras()));
 
-        if (!getHvdcRangeActionsOnHvdcLineInAcEmulation(crac.getHvdcRangeActions(), network).isEmpty()) {
-            LoadFlowAndSensitivityParameters loadFlowAndSensitivityParameters =
-                raoParameters.hasExtension(OpenRaoSearchTreeParameters.class)
-                    ? raoParameters.getExtension(OpenRaoSearchTreeParameters.class).getLoadFlowAndSensitivityParameters()
-                    : new LoadFlowAndSensitivityParameters();
-            searchTreeParametersBuilder.withLoadFlowAndSensitivityParameters(loadFlowAndSensitivityParameters);
-        }
+            if (!getHvdcRangeActionsOnHvdcLineInAcEmulation(crac.getHvdcRangeActions(), network).isEmpty()) {
+                LoadFlowAndSensitivityParameters loadFlowAndSensitivityParameters =
+                    raoParameters.hasExtension(OpenRaoSearchTreeParameters.class)
+                        ? raoParameters.getExtension(OpenRaoSearchTreeParameters.class).getLoadFlowAndSensitivityParameters()
+                        : new LoadFlowAndSensitivityParameters();
+                searchTreeParametersBuilder.withLoadFlowAndSensitivityParameters(loadFlowAndSensitivityParameters);
+            }
 
-        SearchTreeParameters searchTreeParameters = searchTreeParametersBuilder.build();
+            SearchTreeParameters searchTreeParameters = searchTreeParametersBuilder.build();
 
-        Set<State> statesToOptimize = new HashSet<>(optPerimeter.getMonitoredStates());
-        statesToOptimize.add(optPerimeter.getMainOptimizationState());
+            Set<State> statesToOptimize = new HashSet<>(optPerimeter.getMonitoredStates());
+            statesToOptimize.add(optPerimeter.getMainOptimizationState());
 
-        SearchTreeInput searchTreeInput = SearchTreeInput.create()
-            .withNetwork(network)
-            .withOptimizationPerimeter(optPerimeter)
-            .withInitialFlowResult(initialResult)
-            .withPrePerimeterResult(initialResult)
-            .withPreOptimizationAppliedNetworkActions(new AppliedRemedialActions()) //no remedial Action applied
-            .withObjectiveFunction(ObjectiveFunction.build(optPerimeter.getFlowCnecs(), optPerimeter.getLoopFlowCnecs(), initialResult, initialResult, Collections.emptySet(), raoParameters, statesToOptimize))
-            .withToolProvider(toolProvider)
-            .withOutageInstant(crac.getOutageInstant())
-            .build();
+            SearchTreeInput searchTreeInput = SearchTreeInput.create()
+                .withNetwork(network)
+                .withOptimizationPerimeter(optPerimeter)
+                .withInitialFlowResult(initialResult)
+                .withPrePerimeterResult(initialResult)
+                .withPreOptimizationAppliedNetworkActions(new AppliedRemedialActions()) //no remedial Action applied
+                .withObjectiveFunction(ObjectiveFunction.build(optPerimeter.getFlowCnecs(), optPerimeter.getLoopFlowCnecs(), initialResult, initialResult, Collections.emptySet(), raoParameters, statesToOptimize))
+                .withToolProvider(toolProvider)
+                .withOutageInstant(crac.getOutageInstant())
+                .build();
 
-        OptimizationResult optResult = new SearchTree(searchTreeInput, searchTreeParameters, true).run().join();
-        applyRemedialActions(network, optResult, crac.getPreventiveState());
-        return Pair.of(optResult, optPerimeter.getFlowCnecs());
+            OptimizationResult optResult = new SearchTree(searchTreeInput, searchTreeParameters, true).run().join();
+            applyRemedialActions(network, optResult, crac.getPreventiveState());
+            return Pair.of(optResult, optPerimeter.getFlowCnecs());
+        });
     }
 
     private Map<State, PostPerimeterResult> mergeRaoAndPstRegulationResults(Set<PstRegulationResult> pstRegulationResults, PostPerimeterResult postPraResult, Map<State, PostPerimeterResult> postContingencyResults, PrePerimeterSensitivityAnalysis prePerimeterSensitivityAnalysis, FlowResult initialFlowResult, ToolProvider toolProvider) {

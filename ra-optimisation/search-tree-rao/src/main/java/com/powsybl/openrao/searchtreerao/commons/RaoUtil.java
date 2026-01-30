@@ -12,6 +12,7 @@ import com.powsybl.iidm.network.TwoSides;
 import com.powsybl.openrao.commons.OpenRaoException;
 import com.powsybl.openrao.commons.Unit;
 import com.powsybl.openrao.commons.logs.OpenRaoLoggerProvider;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.RemedialAction;
 import com.powsybl.openrao.data.crac.api.State;
@@ -51,11 +52,13 @@ public final class RaoUtil {
     }
 
     public static void initData(RaoInput raoInput, RaoParameters raoParameters) {
-        checkParameters(raoParameters, raoInput);
-        checkCnecsThresholdsUnit(raoParameters, raoInput);
-        initNetwork(raoInput.getNetwork(), raoInput.getNetworkVariantId());
-        updateHvdcRangeActionInitialSetpoint(raoInput.getCrac(), raoInput.getNetwork(), raoParameters);
-        addNetworkActionAssociatedWithHvdcRangeAction(raoInput.getCrac(), raoInput.getNetwork());
+        OpenTelemetryReporter.withSpan("rao.initData", cx -> {
+            checkParameters(raoParameters, raoInput);
+            checkCnecsThresholdsUnit(raoParameters, raoInput);
+            initNetwork(raoInput.getNetwork(), raoInput.getNetworkVariantId());
+            updateHvdcRangeActionInitialSetpoint(raoInput.getCrac(), raoInput.getNetwork(), raoParameters);
+            addNetworkActionAssociatedWithHvdcRangeAction(raoInput.getCrac(), raoInput.getNetwork());
+        });
     }
 
     public static void initNetwork(Network network, String networkVariantId) {
@@ -217,8 +220,10 @@ public final class RaoUtil {
     }
 
     public static void applyRemedialActions(Network network, OptimizationResult optResult, State state) {
-        optResult.getActivatedNetworkActions().forEach(networkAction -> networkAction.apply(network));
-        optResult.getActivatedRangeActions(state).forEach(rangeAction -> rangeAction.apply(network, optResult.getOptimizedSetpoint(rangeAction, state)));
+        OpenTelemetryReporter.withSpan("rao.applyRemedialActions", cx -> {
+            optResult.getActivatedNetworkActions().forEach(networkAction -> networkAction.apply(network));
+            optResult.getActivatedRangeActions(state).forEach(rangeAction -> rangeAction.apply(network, optResult.getOptimizedSetpoint(rangeAction, state)));
+        });
     }
 
     public static Set<String> getDuplicateCnecs(Set<FlowCnec> flowcnecs) {

@@ -5,7 +5,7 @@
     <parent>
         <artifactId>open-rao-ra-optimisation</artifactId>
         <groupId>com.powsybl</groupId>
-        <version>7.1.1</version>
+        <version>7.1.1-OPENTEL-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -97,6 +97,11 @@
             <artifactId>powsybl-iidm-impl</artifactId>
             <scope>test</scope>
         </dependency>
+        <!--dependency>
+            <groupId>com.powsybl</groupId>
+            <artifactId>powsybl-open-loadflow</artifactId>
+            <scope>test</scope>
+        </dependency-->
         <dependency>
             <groupId>com.powsybl</groupId>
             <artifactId>powsybl-ucte-converter</artifactId>

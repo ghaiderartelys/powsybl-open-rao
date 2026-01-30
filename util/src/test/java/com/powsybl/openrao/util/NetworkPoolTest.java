@@ -11,6 +11,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.powsybl.iidm.network.Network;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -89,13 +90,15 @@ class NetworkPoolTest {
         logger.addAppender(listAppender);
 
         MDC.put("extrafield", "value from caller");
-        AbstractNetworkPool pool = AbstractNetworkPool.create(network, otherVariant, 20, true);
-        for (int i = 0; i < 20; i++) {
-            pool.submit(() -> {
-                LoggerFactory.getLogger("LOGGER").info("Hello from forked thread");
-            });
-        }
-        pool.shutdownAndAwaitTermination(1, TimeUnit.SECONDS);
+        OpenTelemetryReporter.withSpan("checkMDCIsCopied", cx -> {
+            AbstractNetworkPool pool = AbstractNetworkPool.create(network, otherVariant, 20, true);
+            for (int i = 0; i < 20; i++) {
+                pool.submit(cx, () -> {
+                    LoggerFactory.getLogger("LOGGER").info("Hello from forked thread");
+                });
+            }
+            pool.shutdownAndAwaitTermination(1, TimeUnit.SECONDS);
+        });
 
         List<ILoggingEvent> logsList = listAppender.list;
         for (int i = 0; i < 20; i++) {

@@ -10,6 +10,7 @@ package com.powsybl.openrao.util;
 import com.powsybl.openrao.commons.RandomizedString;
 import com.powsybl.iidm.network.Network;
 
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryContext;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -100,12 +101,20 @@ public abstract class AbstractNetworkPool extends ForkJoinPool implements AutoCl
     // Must configure the same way different methods from ForkJoinPool when needed
     @Override
     public ForkJoinTask<?> submit(Runnable task) {
-        return super.submit(wrapWithMdcContext(task));
+        throw new IllegalCallerException("Invalid submit() without OpenTelemetryContext");
+    }
+
+    public ForkJoinTask<?> submit(OpenTelemetryContext cx, Runnable task) {
+        return super.submit(wrapWithMdcContext(cx, task));
     }
 
     @Override
     public <T> ForkJoinTask<T> submit(Callable<T> task) {
-        return super.submit(wrapWithMdcContext(task));
+        throw new IllegalCallerException("Invalid submit() without OpenTelemetryContext");
+    }
+
+    public <T> ForkJoinTask<T> submit(OpenTelemetryContext cx, Callable<T> task) {
+        return super.submit(wrapWithMdcContext(cx, task));
     }
 
     public int getNetworkNumberOfClones() {

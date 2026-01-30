@@ -10,6 +10,7 @@ package com.powsybl.openrao.data.raoresult.io.json;
 import com.google.auto.service.AutoService;
 import com.powsybl.openrao.commons.OpenRaoException;
 import com.powsybl.openrao.commons.Unit;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.CracCreationContext;
 import com.powsybl.openrao.data.crac.io.json.JsonCracCreationContext;
@@ -72,26 +73,28 @@ public class RaoResultJsonExporter implements Exporter {
 
     @Override
     public void exportData(RaoResult raoResult, Crac crac, Properties properties, OutputStream outputStream) {
-        boolean flowsInAmperes = Boolean.parseBoolean(properties.getProperty(JSON_EXPORT_PROPERTIES_PREFIX + FLOWS_IN_AMPERES, "false"));
-        boolean flowsInMegawatts = Boolean.parseBoolean(properties.getProperty(JSON_EXPORT_PROPERTIES_PREFIX + FLOWS_IN_MEGAWATTS, "false"));
-        if (!flowsInAmperes && !flowsInMegawatts) {
-            throw new OpenRaoException("At least one flow unit should be used. Please provide %s and/or %s in the properties.".formatted(JSON_EXPORT_PROPERTIES_PREFIX + FLOWS_IN_AMPERES, JSON_EXPORT_PROPERTIES_PREFIX + FLOWS_IN_MEGAWATTS));
-        }
-        Set<Unit> flowUnits = new HashSet<>();
-        if (flowsInAmperes) {
-            flowUnits.add(Unit.AMPERE);
-        }
-        if (flowsInMegawatts) {
-            flowUnits.add(Unit.MEGAWATT);
-        }
-        try {
-            ObjectMapper objectMapper = JsonUtil.createObjectMapper();
-            SimpleModule module = new RaoResultJsonSerializerModule(crac, flowUnits);
-            objectMapper.registerModule(module);
-            ObjectWriter writer = objectMapper.writerWithDefaultPrettyPrinter();
-            writer.writeValue(outputStream, raoResult);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        OpenTelemetryReporter.withSpan("rao.exportJsonCrac", cx -> {
+            boolean flowsInAmperes = Boolean.parseBoolean(properties.getProperty(JSON_EXPORT_PROPERTIES_PREFIX + FLOWS_IN_AMPERES, "false"));
+            boolean flowsInMegawatts = Boolean.parseBoolean(properties.getProperty(JSON_EXPORT_PROPERTIES_PREFIX + FLOWS_IN_MEGAWATTS, "false"));
+            if (!flowsInAmperes && !flowsInMegawatts) {
+                throw new OpenRaoException("At least one flow unit should be used. Please provide %s and/or %s in the properties.".formatted(JSON_EXPORT_PROPERTIES_PREFIX + FLOWS_IN_AMPERES, JSON_EXPORT_PROPERTIES_PREFIX + FLOWS_IN_MEGAWATTS));
+            }
+            Set<Unit> flowUnits = new HashSet<>();
+            if (flowsInAmperes) {
+                flowUnits.add(Unit.AMPERE);
+            }
+            if (flowsInMegawatts) {
+                flowUnits.add(Unit.MEGAWATT);
+            }
+            try {
+                ObjectMapper objectMapper = JsonUtil.createObjectMapper();
+                SimpleModule module = new RaoResultJsonSerializerModule(crac, flowUnits);
+                objectMapper.registerModule(module);
+                ObjectWriter writer = objectMapper.writerWithDefaultPrettyPrinter();
+                writer.writeValue(outputStream, raoResult);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 }

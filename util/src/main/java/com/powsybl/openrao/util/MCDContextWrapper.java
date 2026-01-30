@@ -7,6 +7,8 @@
 
 package com.powsybl.openrao.util;
 
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryContext;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import org.slf4j.MDC;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -20,13 +22,13 @@ public final class MCDContextWrapper {
 
     }
 
-    public static Runnable wrapWithMdcContext(Runnable task) {
+    public static Runnable wrapWithMdcContext(OpenTelemetryContext cx, Runnable task) {
         //save the current MDC context
         Map<String, String> contextMap = MDC.getCopyOfContextMap();
         return () -> {
             setMDCContext(contextMap);
             try {
-                task.run();
+                OpenTelemetryReporter.inContext(cx, task);
             } finally {
                 // once the task is complete, clear MDC
                 MDC.clear();
@@ -34,13 +36,13 @@ public final class MCDContextWrapper {
         };
     }
 
-    public static <T> Callable<T> wrapWithMdcContext(Callable<T> task) {
+    public static <T> Callable<T> wrapWithMdcContext(OpenTelemetryContext cx, Callable<T> task) {
         //save the current MDC context
         Map<String, String> contextMap = MDC.getCopyOfContextMap();
         return () -> {
             setMDCContext(contextMap);
             try {
-                return task.call();
+                return OpenTelemetryReporter.inContext(cx, task);
             } finally {
                 // once the task is complete, clear MDC
                 MDC.clear();

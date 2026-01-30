@@ -9,6 +9,7 @@ package com.powsybl.openrao.searchtreerao.commons;
 
 import com.powsybl.openrao.commons.*;
 import com.powsybl.openrao.commons.logs.OpenRaoLoggerProvider;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Instant;
 import com.powsybl.openrao.data.crac.api.cnec.Cnec;
 import com.powsybl.openrao.data.crac.api.cnec.FlowCnec;
@@ -200,33 +201,35 @@ public final class ToolProvider {
     }
 
     public static ToolProvider buildFromRaoInputAndParameters(RaoInput raoInput, RaoParameters raoParameters) {
-
-        ToolProvider.ToolProviderBuilder toolProviderBuilder = ToolProvider.create()
-            .withNetwork(raoInput.getNetwork())
-            .withRaoParameters(raoParameters);
-        if (raoInput.getReferenceProgram() != null) {
-            toolProviderBuilder.withLoopFlowComputation(
-                raoInput.getReferenceProgram(),
-                raoInput.getGlskProvider(),
-                new LoopFlowComputationImpl(
+        return OpenTelemetryReporter.withSpan("rao.buildToolProvider", cx -> {
+            ToolProvider.ToolProviderBuilder toolProviderBuilder = ToolProvider.create()
+                .withNetwork(raoInput.getNetwork())
+                .withRaoParameters(raoParameters);
+            if (raoInput.getReferenceProgram() != null) {
+                toolProviderBuilder.withLoopFlowComputation(
+                    raoInput.getReferenceProgram(),
                     raoInput.getGlskProvider(),
-                    raoInput.getReferenceProgram()
-                )
-            );
-        }
-        if (raoParameters.getObjectiveFunctionParameters().getType().relativePositiveMargins()) {
-            Optional<RelativeMarginsParameters> optionalRelativeMarginsParameters = raoParameters.getRelativeMarginsParameters();
-            if (optionalRelativeMarginsParameters.isEmpty()) {
-                throw new OpenRaoException("No relative margins parameters were defined with objective function " + raoParameters.getObjectiveFunctionParameters().getType());
+                    new LoopFlowComputationImpl(
+                        raoInput.getGlskProvider(),
+                        raoInput.getReferenceProgram()
+                    )
+                );
             }
-            toolProviderBuilder.withAbsolutePtdfSumsComputation(
-                raoInput.getGlskProvider(),
-                new AbsolutePtdfSumsComputation(
+            if (raoParameters.getObjectiveFunctionParameters().getType().relativePositiveMargins()) {
+                Optional<RelativeMarginsParameters> optionalRelativeMarginsParameters = raoParameters.getRelativeMarginsParameters();
+                if (optionalRelativeMarginsParameters.isEmpty()) {
+                    throw new OpenRaoException("No relative margins parameters were defined with objective function " + raoParameters.getObjectiveFunctionParameters().getType());
+                }
+                toolProviderBuilder.withAbsolutePtdfSumsComputation(
                     raoInput.getGlskProvider(),
-                    optionalRelativeMarginsParameters.get().getPtdfBoundaries()
-                )
-            );
-        }
-        return toolProviderBuilder.build();
+                    new AbsolutePtdfSumsComputation(
+                        raoInput.getGlskProvider(),
+                        optionalRelativeMarginsParameters.get().getPtdfBoundaries()
+                    )
+                );
+            }
+            return toolProviderBuilder.build();
+        });
     }
 }
+

@@ -13,6 +13,7 @@ import com.powsybl.openrao.commons.Unit;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.State;
 import com.powsybl.openrao.data.crac.api.cnec.FlowCnec;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.networkaction.NetworkAction;
 import com.powsybl.openrao.data.crac.api.rangeaction.RangeAction;
 import com.powsybl.openrao.data.raoresult.api.RaoResult;
@@ -40,7 +41,7 @@ class PostOptimizationResultTest {
     @BeforeEach
     void setUp() throws IOException {
         Network network = Network.read("12Nodes_2_pst.uct", PostOptimizationResultTest.class.getResourceAsStream("/network/12Nodes_2_pst.uct"));
-        crac = Crac.read("small-crac-2pst-1600.json", PostOptimizationResultTest.class.getResourceAsStream("/crac/small-crac-2pst-1600.json"), network);
+        crac = Crac.read("small-crac-2pst-1600.json", getResourceAsStream("/crac/small-crac-2pst-1600.json"), network);
         raoInput = RaoInput.build(network, crac).build();
     }
 
@@ -79,4 +80,9 @@ class PostOptimizationResultTest {
         assertEquals(Set.of(networkAction), postOptimizationResult.getActivatedNetworkActionsDuringState(preventiveState));
         assertEquals(Set.of(rangeAction), postOptimizationResult.getActivatedRangeActionsDuringState(preventiveState));
     }
+
+    protected TmpFile getResourceAsStream(String s) throws IOException {
+        return new TmpFile("test", getClass().getResourceAsStream(s));
+    }
+
 }

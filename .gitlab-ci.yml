@@ -1,0 +1,27 @@
+stages:
+  - build
+
+build:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-21
+  script:
+    - mkdir -p ~/.m2
+    - |
+      cat > ~/.m2/settings.xml <<EOF
+      <settings>
+      <servers>
+      <server>
+      <id>artifactory</id>
+      <username>${ARTIFACTORY_LOGIN}</username>
+      <password>${ARTIFACTORY_PASSWORD}</password>
+      </server>
+      </servers>
+      </settings>
+      EOF
+
+    - mvn --batch-mode --errors --fail-at-end clean compile -U
+    - mvn --batch-mode --errors --fail-at-end test > test.log 2>&1
+    - mvn --batch-mode --errors --fail-at-end package -DskipTests
+
+    - mvn --batch-mode deploy -DaltDeploymentRepository=artifactory::default::${ARTIFACTORY_URL} -DskipTests
+
