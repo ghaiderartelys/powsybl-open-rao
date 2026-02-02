@@ -78,19 +78,14 @@ public final class Helpers {
         }
     }
 
-  public static CracCreationContext importCracFromNativeCrac(File cracFile, Network network, CracCreationParameters cracCreationParameters) throws IOException {
-      //TODo use tmpfile
-    byte[] cracBytes = null;
-    try (InputStream cracInputStream = new BufferedInputStream(new FileInputStream(cracFile))) {
-      cracBytes = getBytesFromInputStream(cracInputStream);
-    } catch (IOException e) {
-      e.printStackTrace();
-      throw new OpenRaoException("Could not load CRAC file", e);
+    public static CracCreationContext importCracFromNativeCrac(File cracFile, Network network, CracCreationParameters cracCreationParameters) throws IOException {
+      byte[] cracBytes = null;
+      try (TmpFile tempFile = new TmpFile("crac", cracFile)) {
+        CracCreationContext cracCreationContext = Crac.readWithContext(cracFile.getName(), tempFile, network, cracCreationParameters);
+        // round-trip CRAC json export/import to test it implicitly
+        return roundTripOnCracCreationContext(cracCreationContext, network);
+      }
     }
-    CracCreationContext cracCreationContext = Crac.readWithContext(cracFile.getName(), new ByteArrayInputStream(cracBytes), network, cracCreationParameters);
-    // round-trip CRAC json export/import to test it implicitly
-    return roundTripOnCracCreationContext(cracCreationContext, network);
-  }
 
     public static String getCracFormat(File cracFile) {
         if (cracFile.getName().endsWith(".json")) {
