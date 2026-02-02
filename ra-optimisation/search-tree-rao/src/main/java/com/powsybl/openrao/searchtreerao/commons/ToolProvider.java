@@ -232,4 +232,3 @@ public final class ToolProvider {
         });
     }
 }
-
