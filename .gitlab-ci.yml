@@ -1,9 +1,17 @@
 stages:
   - build
 
+variables:
+  MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end"
+
+image: maven:3.9.4-eclipse-temurin-21
+
+cache:
+  paths:
+    - .m2/repository
+    -
 build:
   stage: build
-  image: maven:3.9.6-eclipse-temurin-21
   script:
     - mkdir -p ~/.m2
     - |
@@ -19,9 +27,14 @@ build:
       </settings>
       EOF
 
-    - mvn --batch-mode --errors --fail-at-end clean compile -U
-    - mvn --batch-mode --errors --fail-at-end test > test.log 2>&1
-    - mvn --batch-mode --errors --fail-at-end package -DskipTests
+    - mvn $MAVEN_CLI_OPTS compile
+    - mvn $MAVEN_CLI_OPTS verify -l test.log
+    - if [[ $CI_COMMIT_REF_PROTECTED == "true" ]]; then
+        mvn $MAVEN_CLI_OPTS deploy -DaltDeploymentRepository=artifactory::default::${ARTIFACTORY_URL} -DskipTests
+      fi
 
-    - mvn --batch-mode deploy -DaltDeploymentRepository=artifactory::default::${ARTIFACTORY_URL} -DskipTests
+  artifacts:
+    paths:
+      - test.log
+      - target/*.jar
 
