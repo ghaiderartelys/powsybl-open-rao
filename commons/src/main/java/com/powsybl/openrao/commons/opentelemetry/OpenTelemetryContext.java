@@ -59,10 +59,6 @@ public class OpenTelemetryContext {
 
     public void recordException(Exception e) {
         span.ifPresent(s -> s.recordException(e));
-
     }
 
 }
-
-
-
