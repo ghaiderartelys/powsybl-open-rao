@@ -80,9 +80,9 @@ public final class Helpers {
 
     public static CracCreationContext importCracFromNativeCrac(File cracFile, Network network, CracCreationParameters cracCreationParameters) throws IOException {
         try (TmpFile tempFile = new TmpFile("crac", cracFile)) {
-          CracCreationContext cracCreationContext = Crac.readWithContext(cracFile.getName(), tempFile, network, cracCreationParameters);
-          // round-trip CRAC json export/import to test it implicitly
-          return roundTripOnCracCreationContext(cracCreationContext, network);
+            CracCreationContext cracCreationContext = Crac.readWithContext(cracFile.getName(), tempFile, network, cracCreationParameters);
+            // round-trip CRAC json export/import to test it implicitly
+            return roundTripOnCracCreationContext(cracCreationContext, network);
         }
     }
 
