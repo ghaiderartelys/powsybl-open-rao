@@ -53,7 +53,6 @@ import static com.powsybl.openrao.searchtreerao.commons.HvdcUtils.getHvdcRangeAc
 import static com.powsybl.openrao.searchtreerao.commons.RaoLogger.formatDoubleBasedOnMargin;
 import static com.powsybl.openrao.searchtreerao.commons.RaoLogger.getVirtualCostDetailed;
 import static com.powsybl.openrao.searchtreerao.commons.RaoUtil.applyRemedialActions;
-import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 
 /**
  * @author Joris Mancini {@literal <joris.mancini at rte-france.com>}

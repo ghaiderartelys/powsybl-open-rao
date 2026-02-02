@@ -392,7 +392,7 @@ class JsonRetrocompatibilityTest {
         String cracFilePath = "/retrocompatibility/v2/crac-v2.8.json";
         InputStream cracFile = getClass().getResourceAsStream(cracFilePath);
 
-        Crac crac = Crac.read(cracFilePath, cracFile, network);
+        Crac crac = Crac.read(cracFilePath, new TmpFile("test", cracFile), network);
         assertEquals(7, crac.getNetworkActions().size());
         testContentOfV2Point8Crac(crac);
     }

@@ -42,8 +42,8 @@ public class TmpFile implements AutoCloseable {
     }
 
     protected void loadInputStream(InputStream inputStream) throws IOException {
-        try (OutputStream out = new FileOutputStream(tempFile)) {
-            inputStream.transferTo(out);
+        try (var is = inputStream; OutputStream out = new FileOutputStream(tempFile)) {
+            is.transferTo(out);
         }
         LOGGER.debug("Loaded data. Size={}", tempFile.length());
     }

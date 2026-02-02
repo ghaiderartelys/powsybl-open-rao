@@ -43,8 +43,6 @@ import static com.powsybl.openrao.raoapi.parameters.extensions.LoadFlowAndSensit
 import static com.powsybl.openrao.raoapi.parameters.extensions.MultithreadingParameters.getAvailableCPUs;
 import static com.powsybl.openrao.searchtreerao.commons.HvdcUtils.getHvdcRangeActionsOnHvdcLineInAcEmulation;
 import static com.powsybl.openrao.searchtreerao.commons.RaoUtil.applyRemedialActions;
-import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
-
 
 /**
  * @author Joris Mancini {@literal <joris.mancini at rte-france.com>}
@@ -83,33 +81,33 @@ public class CastorContingencyScenarios {
     public Map<State, PostPerimeterResult> optimizeContingencyScenarios(Network network,
                                                                        PrePerimeterResult prePerimeterSensitivityOutput,
                                                                        boolean automatonsOnly) {
-		return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios", cx -> {
-			Map<State, PostPerimeterResult> contingencyScenarioResults = new ConcurrentHashMap<>();
-			// Create a new variant
-			String newVariant = RandomizedString.getRandomizedString(CONTINGENCY_SCENARIO, network.getVariantManager().getVariantIds(), 10);
-			network.getVariantManager().cloneVariant(network.getVariantManager().getWorkingVariantId(), newVariant);
-			network.getVariantManager().setWorkingVariant(newVariant);
-			// Create an automaton simulator
-			AutomatonSimulator automatonSimulator = new AutomatonSimulator(crac, raoParameters, toolProvider, initialSensitivityOutput, prePerimeterSensitivityOutput, stateTree.getOperatorsNotSharingCras(), NUMBER_LOGGED_ELEMENTS_DURING_RAO);
-			// Go through all contingency scenarios
-			try (AbstractNetworkPool networkPool = AbstractNetworkPool.create(network, newVariant, getAvailableCPUs(raoParameters), true)) {
-				AtomicInteger remainingScenarios = new AtomicInteger(stateTree.getContingencyScenarios().size());
-				List<ForkJoinTask<Object>> tasks = stateTree.getContingencyScenarios().stream().map(optimizedScenario ->
-					networkPool.submit(() -> runScenario(prePerimeterSensitivityOutput, automatonsOnly, optimizedScenario, networkPool, automatonSimulator, contingencyScenarioResults, remainingScenarios))
-				).toList();
-				for (ForkJoinTask<Object> task : tasks) {
-					try {
-						task.get();
-					} catch (ExecutionException e) {
-						throw new OpenRaoException(e);
+		  return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios", cx -> {
+				Map<State, PostPerimeterResult> contingencyScenarioResults = new ConcurrentHashMap<>();
+				// Create a new variant
+				String newVariant = RandomizedString.getRandomizedString(CONTINGENCY_SCENARIO, network.getVariantManager().getVariantIds(), 10);
+				network.getVariantManager().cloneVariant(network.getVariantManager().getWorkingVariantId(), newVariant);
+				network.getVariantManager().setWorkingVariant(newVariant);
+				// Create an automaton simulator
+				AutomatonSimulator automatonSimulator = new AutomatonSimulator(crac, raoParameters, toolProvider, initialSensitivityOutput, prePerimeterSensitivityOutput, stateTree.getOperatorsNotSharingCras(), NUMBER_LOGGED_ELEMENTS_DURING_RAO);
+				// Go through all contingency scenarios
+				try (AbstractNetworkPool networkPool = AbstractNetworkPool.create(network, newVariant, getAvailableCPUs(raoParameters), true)) {
+					AtomicInteger remainingScenarios = new AtomicInteger(stateTree.getContingencyScenarios().size());
+					List<ForkJoinTask<Object>> tasks = stateTree.getContingencyScenarios().stream().map(optimizedScenario ->
+						networkPool.submit(() -> runScenario(prePerimeterSensitivityOutput, automatonsOnly, optimizedScenario, networkPool, automatonSimulator, contingencyScenarioResults, remainingScenarios))
+					).toList();
+					for (ForkJoinTask<Object> task : tasks) {
+						try {
+							task.get();
+						} catch (ExecutionException e) {
+							throw new OpenRaoException(e);
+						}
 					}
+					networkPool.shutdownAndAwaitTermination(24, TimeUnit.HOURS);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
 				}
-				networkPool.shutdownAndAwaitTermination(24, TimeUnit.HOURS);
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-			}
-			return contingencyScenarioResults;
-		});
+				return contingencyScenarioResults;
+			});
     }
 
     private Object runScenario(PrePerimeterResult prePerimeterSensitivityOutput, boolean automatonsOnly, ContingencyScenario optimizedScenario, AbstractNetworkPool networkPool, AutomatonSimulator automatonSimulator, Map<State, PostPerimeterResult> contingencyScenarioResults, AtomicInteger remainingScenarios) throws InterruptedException {
