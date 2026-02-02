@@ -23,6 +23,7 @@ import com.powsybl.openrao.data.crac.api.InstantKind;
 import com.powsybl.openrao.data.crac.api.State;
 import com.powsybl.openrao.data.crac.api.cnec.FlowCnec;
 import com.powsybl.iidm.network.TwoSides;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.networkaction.ActionType;
 import com.powsybl.openrao.data.crac.api.networkaction.NetworkAction;
 import com.powsybl.openrao.data.crac.api.rangeaction.PstRangeAction;
@@ -60,7 +61,7 @@ class CastorFullOptimizationTest {
 
     public void setup(String networkFile, String cracFile) throws IOException {
         network = Network.read(networkFile, getClass().getResourceAsStream("/network/" + networkFile));
-        crac = Crac.read(cracFile, getClass().getResourceAsStream("/crac/" + cracFile), network);
+        crac = Crac.read(cracFile, new TmpFile("test", getClass().getResourceAsStream("/crac/" + cracFile)), network);
         raoInput = RaoInput.build(network, crac).build();
     }
 
@@ -530,7 +531,7 @@ class CastorFullOptimizationTest {
     @Test
     void costlyPreventiveRaoNetworkActionsOnly() throws IOException {
         network = Network.read("2Nodes4ParallelLines.uct", getClass().getResourceAsStream("/network/2Nodes4ParallelLines.uct"));
-        crac = Crac.read("small-crac-costly-preventive-only.json", getClass().getResourceAsStream("/crac/small-crac-costly-preventive-only.json"), network);
+        crac = Crac.read("small-crac-costly-preventive-only.json", new TmpFile("test", getClass().getResourceAsStream("/crac/small-crac-costly-preventive-only.json")), network);
         RaoInput raoInput = RaoInput.build(network, crac).build();
         RaoParameters raoParameters = JsonRaoParameters.read(getClass().getResourceAsStream("/parameters/RaoParameters_dc_minObjective.json"));
 
@@ -571,7 +572,7 @@ class CastorFullOptimizationTest {
     @Test
     void testPstRegulationAtTheEndOfRao() throws IOException {
         network = Network.read("2Nodes3ParallelLinesPST.uct", getClass().getResourceAsStream("/network/2Nodes3ParallelLinesPST.uct"));
-        crac = Crac.read("crac-regulation-1-PST.json", getClass().getResourceAsStream("/crac/crac-regulation-1-PST.json"), network);
+        crac = Crac.read("crac-regulation-1-PST.json", new TmpFile("test", getClass().getResourceAsStream("/crac/crac-regulation-1-PST.json")), network);
         RaoInput raoInput = RaoInput.build(network, crac).build();
         RaoParameters raoParameters = JsonRaoParameters.read(getClass().getResourceAsStream("/parameters/RaoParameters_minMargin_ac.json"));
 
