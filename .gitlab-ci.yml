@@ -34,6 +34,7 @@ build:
       fi
 
   artifacts:
+    when: always
     paths:
       - test.log
       - target/*.jar
