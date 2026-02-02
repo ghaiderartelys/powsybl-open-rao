@@ -79,12 +79,11 @@ public final class Helpers {
     }
 
     public static CracCreationContext importCracFromNativeCrac(File cracFile, Network network, CracCreationParameters cracCreationParameters) throws IOException {
-      byte[] cracBytes = null;
-      try (TmpFile tempFile = new TmpFile("crac", cracFile)) {
-        CracCreationContext cracCreationContext = Crac.readWithContext(cracFile.getName(), tempFile, network, cracCreationParameters);
-        // round-trip CRAC json export/import to test it implicitly
-        return roundTripOnCracCreationContext(cracCreationContext, network);
-      }
+        try (TmpFile tempFile = new TmpFile("crac", cracFile)) {
+          CracCreationContext cracCreationContext = Crac.readWithContext(cracFile.getName(), tempFile, network, cracCreationParameters);
+          // round-trip CRAC json export/import to test it implicitly
+          return roundTripOnCracCreationContext(cracCreationContext, network);
+        }
     }
 
     public static String getCracFormat(File cracFile) {
@@ -197,16 +196,5 @@ public final class Helpers {
             throw new OpenRaoException(String.format("Could not load file %s", path));
         }
     }
-
-  private static byte[] getBytesFromInputStream(InputStream inputStream) {
-    try {
-      ByteArrayOutputStream baos = new ByteArrayOutputStream();
-      org.apache.commons.io.IOUtils.copy(inputStream, baos);
-      return baos.toByteArray();
-    } catch (IOException e) {
-      e.printStackTrace();
-      throw new UncheckedIOException(e);
-    }
-  }
 
 }
