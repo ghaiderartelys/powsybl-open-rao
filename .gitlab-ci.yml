@@ -49,15 +49,5 @@ deploy:
     - if: '$CI_COMMIT_REF_PROTECTED == "true"'
   script:
     - *create_m2_settings
-    - |
-      for jar in target/*.jar; do
-        echo "Deploying $jar"
-        mvn deploy:deploy-file \
-          -Dfile="$jar" \
-          -DpomFile=pom.xml \
-          -DrepositoryId=artelys-artifactory \
-          -Durl=${ARTIFACTORY_URL} \
-          -Dpackaging=jar
-      done
+    - mvn $MAVEN_CLI_OPTS deploy -DaltDeploymentRepository=artifactory::default::${ARTIFACTORY_URL} -DskipTests
 
-      
