@@ -93,7 +93,8 @@ public class CastorContingencyScenarios {
             try (AbstractNetworkPool networkPool = AbstractNetworkPool.create(network, newVariant, getAvailableCPUs(raoParameters), true)) {
                 AtomicInteger remainingScenarios = new AtomicInteger(stateTree.getContingencyScenarios().size());
                 List<ForkJoinTask<Object>> tasks = stateTree.getContingencyScenarios().stream().map(optimizedScenario ->
-                    networkPool.submit(() -> runScenario(prePerimeterSensitivityOutput, automatonsOnly, optimizedScenario, networkPool, automatonSimulator, contingencyScenarioResults, remainingScenarios))
+                    networkPool.submit(cx,() -> runScenario(prePerimeterSensitivityOutput,
+                            automatonsOnly, optimizedScenario, networkPool, automatonSimulator, contingencyScenarioResults, remainingScenarios))
                 ).toList();
                 for (ForkJoinTask<Object> task : tasks) {
                     try {
