@@ -293,11 +293,10 @@ public class SearchTree {
                 TECHNICAL_LOGS.info("Leaves to evaluate: {}", numberOfCombinations);
             }
             AtomicInteger remainingLeaves = new AtomicInteger(numberOfCombinations);
-            List<ForkJoinTask<Object>> tasks = naCombinationsSorted.stream()
-                .map(naCombination ->
-                    networkPool.submit(() -> optimizeOneLeaf(networkPool, naCombination,
-                        remainingLeaves))
-                ).toList();
+            List<ForkJoinTask<Object>> tasks = naCombinationsSorted.stream().map(naCombination ->
+                    networkPool.submit(cx,
+                            () -> optimizeOneLeaf(networkPool, naCombination, remainingLeaves))
+            ).toList();
             for (ForkJoinTask<Object> task : tasks) {
                 try {
                     task.get();
