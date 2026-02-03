@@ -1,5 +1,6 @@
 stages:
   - build
+  - deploy
 
 variables:
   MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end"
@@ -29,9 +30,6 @@ build:
 
     - mvn $MAVEN_CLI_OPTS compile
     - mvn $MAVEN_CLI_OPTS verify -l test.log
-    - if [[ $CI_COMMIT_REF_PROTECTED == "true" ]]; then
-        mvn $MAVEN_CLI_OPTS deploy -DaltDeploymentRepository=artifactory::default::${ARTIFACTORY_URL} -DskipTests;
-      fi
 
   artifacts:
     when: always
@@ -39,3 +37,15 @@ build:
       - test.log
       - target/*.jar
 
+
+deploy:
+  stage: deploy
+  needs:
+    - job: build
+      artifacts: true
+  rules:
+    - if: '$CI_COMMIT_REF_PROTECTED == "true"'
+  script:
+    - |
+      mvn $MAVEN_CLI_OPTS deploy -DaltDeploymentRepository=artifactory::default::${ARTIFACTORY_URL} -DskipTests
+    
