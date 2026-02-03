@@ -47,5 +47,5 @@ deploy:
     - if: '$CI_COMMIT_REF_PROTECTED == "true"'
   script:
     - |
-      mvn $MAVEN_CLI_OPTS deploy -DaltDeploymentRepository=artifactory::default::${ARTIFACTORY_URL} -DskipTests
+      mvn $MAVEN_CLI_OPTS deploy -DaltDeploymentRepository=artifactory::default::${ARTIFACTORY_URL} -DskipTests -o
     
