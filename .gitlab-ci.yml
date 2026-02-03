@@ -32,8 +32,7 @@ build:
   script:
     - *create_m2_settings
     - mvn $MAVEN_CLI_OPTS compile
-    - echo mvn $MAVEN_CLI_OPTS verify -l test.log
-    - mvn $MAVEN_CLI_OPTS package
+    - mvn $MAVEN_CLI_OPTS verify -l test.log
 
   artifacts:
     when: always
