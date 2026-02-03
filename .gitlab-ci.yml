@@ -30,7 +30,7 @@ build:
     - mvn $MAVEN_CLI_OPTS compile
     - mvn $MAVEN_CLI_OPTS verify -l test.log
     - if [[ $CI_COMMIT_REF_PROTECTED == "true" ]]; then
-        mvn $MAVEN_CLI_OPTS deploy -DaltDeploymentRepository=artifactory::default::${ARTIFACTORY_URL} -DskipTests
+        mvn $MAVEN_CLI_OPTS deploy -DaltDeploymentRepository=artifactory::default::${ARTIFACTORY_URL} -DskipTests;
       fi
 
   artifacts:
