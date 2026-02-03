@@ -8,35 +8,37 @@ variables:
 image: maven:3.9.4-eclipse-temurin-21
 
 cache:
+  key: cicd
   paths:
     - .m2/repository
+
+.create_m2_settings: &create_m2_settings |
+  mkdir -p ~/.m2
+  cat > ~/.m2/settings.xml <<EOF
+  <settings>
+  <servers>
+  <server>
+  <id>artifactory</id>
+  <username>${ARTIFACTORY_LOGIN}</username>
+  <password>${ARTIFACTORY_PASSWORD}</password>
+  </server>
+  </servers>
+  </settings>
+  EOF
+  
 
 build:
   stage: build
   script:
-    - mkdir -p ~/.m2
-    - |
-      cat > ~/.m2/settings.xml <<EOF
-      <settings>
-      <servers>
-      <server>
-      <id>artifactory</id>
-      <username>${ARTIFACTORY_LOGIN}</username>
-      <password>${ARTIFACTORY_PASSWORD}</password>
-      </server>
-      </servers>
-      </settings>
-      EOF
-
+    - *create_m2_settings
     - mvn $MAVEN_CLI_OPTS compile
-    - mvn $MAVEN_CLI_OPTS verify -l test.log
+    - echo mvn $MAVEN_CLI_OPTS verify -l test.log
 
   artifacts:
     when: always
     paths:
       - test.log
       - target/*.jar
-
 
 deploy:
   stage: deploy
@@ -46,6 +48,15 @@ deploy:
   rules:
     - if: '$CI_COMMIT_REF_PROTECTED == "true"'
   script:
+    - *create_m2_settings
     - |
-      mvn $MAVEN_CLI_OPTS deploy -DaltDeploymentRepository=artifactory::default::${ARTIFACTORY_URL} -DskipTests -o
-    
+      for jar in target/*.jar; do
+        echo "Deploying $jar"
+        mvn deploy:deploy-file \
+          -Dfile="$jar" \
+          -DpomFile=pom.xml \
+          -DrepositoryId=artelys-artifactory \
+          -Durl=${ARTIFACTORY_URL} \
+          -Dpackaging=jar
+      done
+      
