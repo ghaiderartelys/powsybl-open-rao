@@ -10,6 +10,7 @@ package com.powsybl.openrao.searchtreerao.marmot.results;
 import com.powsybl.iidm.network.Network;
 import com.powsybl.openrao.commons.TemporalDataImpl;
 import com.powsybl.openrao.data.crac.api.Crac;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.raoresult.api.RaoResult;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -138,9 +139,9 @@ class RaoResultArchiveManagerTest {
         Network network1 = Network.read("/network/3Nodes.uct", InterTemporalRaoResultImplTest.class.getResourceAsStream("/network/3Nodes.uct"));
         Network network2 = Network.read("/network/3Nodes.uct", InterTemporalRaoResultImplTest.class.getResourceAsStream("/network/3Nodes.uct"));
         Network network3 = Network.read("/network/3Nodes.uct", InterTemporalRaoResultImplTest.class.getResourceAsStream("/network/3Nodes.uct"));
-        Crac crac1 = Crac.read("/crac/crac-redispatching-202502141040.json", InterTemporalRaoResultImplTest.class.getResourceAsStream("/crac/crac-redispatching-202502141040.json"), network1);
-        Crac crac2 = Crac.read("/crac/crac-redispatching-202502141140.json", InterTemporalRaoResultImplTest.class.getResourceAsStream("/crac/crac-redispatching-202502141140.json"), network2);
-        Crac crac3 = Crac.read("/crac/crac-redispatching-202502141240.json", InterTemporalRaoResultImplTest.class.getResourceAsStream("/crac/crac-redispatching-202502141240.json"), network3);
+        Crac crac1 = Crac.read("/crac/crac-redispatching-202502141040.json", getResourceAsStream("/crac/crac-redispatching-202502141040.json"), network1);
+        Crac crac2 = Crac.read("/crac/crac-redispatching-202502141140.json", getResourceAsStream("/crac/crac-redispatching-202502141140.json"), network2);
+        Crac crac3 = Crac.read("/crac/crac-redispatching-202502141240.json", getResourceAsStream("/crac/crac-redispatching-202502141240.json"), network3);
         RaoResult raoResult1 = RaoResult.read(InterTemporalRaoResultImplTest.class.getResourceAsStream("/raoResult/raoResult1.json"), crac1);
         RaoResult raoResult2 = RaoResult.read(InterTemporalRaoResultImplTest.class.getResourceAsStream("/raoResult/raoResult2.json"), crac2);
         RaoResult raoResult3 = RaoResult.read(InterTemporalRaoResultImplTest.class.getResourceAsStream("/raoResult/raoResult3.json"), crac3);
@@ -179,4 +180,9 @@ class RaoResultArchiveManagerTest {
         this.cracTemporalData = cracTemporalData;
         this.globalRaoResultToExport = globalRaoResultToExport;
     }
+
+    protected static TmpFile getResourceAsStream(String s) throws IOException {
+        return new TmpFile("test", RaoResultArchiveManagerTest.class.getResourceAsStream(s));
+    }
+
 }

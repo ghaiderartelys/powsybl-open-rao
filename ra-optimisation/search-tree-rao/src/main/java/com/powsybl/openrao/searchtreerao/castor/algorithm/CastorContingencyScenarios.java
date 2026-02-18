@@ -7,9 +7,17 @@
 
 package com.powsybl.openrao.searchtreerao.castor.algorithm;
 
+import static com.powsybl.openrao.commons.logs.OpenRaoLoggerProvider.TECHNICAL_LOGS;
+import static com.powsybl.openrao.data.raoresult.api.ComputationStatus.DEFAULT;
+import static com.powsybl.openrao.raoapi.parameters.extensions.LoadFlowAndSensitivityParameters.getSensitivityFailureOvercost;
+import static com.powsybl.openrao.raoapi.parameters.extensions.MultithreadingParameters.getAvailableCPUs;
+import static com.powsybl.openrao.searchtreerao.commons.HvdcUtils.getHvdcRangeActionsOnHvdcLineInAcEmulation;
+import static com.powsybl.openrao.searchtreerao.commons.RaoUtil.applyRemedialActions;
+
 import com.powsybl.iidm.network.Network;
 import com.powsybl.openrao.commons.OpenRaoException;
 import com.powsybl.openrao.commons.RandomizedString;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.State;
 import com.powsybl.openrao.data.crac.api.cnec.FlowCnec;
@@ -20,28 +28,44 @@ import com.powsybl.openrao.raoapi.parameters.extensions.LoadFlowAndSensitivityPa
 import com.powsybl.openrao.raoapi.parameters.extensions.OpenRaoSearchTreeParameters;
 import com.powsybl.openrao.searchtreerao.commons.ToolProvider;
 import com.powsybl.openrao.searchtreerao.commons.objectivefunction.ObjectiveFunction;
-import com.powsybl.openrao.searchtreerao.commons.optimizationperimeters.*;
+import com.powsybl.openrao.searchtreerao.commons.optimizationperimeters.AbstractOptimizationPerimeter;
+import com.powsybl.openrao.searchtreerao.commons.optimizationperimeters.CurativeOptimizationPerimeter;
+import com.powsybl.openrao.searchtreerao.commons.optimizationperimeters.OptimizationPerimeter;
 import com.powsybl.openrao.searchtreerao.commons.parameters.TreeParameters;
 import com.powsybl.openrao.searchtreerao.commons.parameters.UnoptimizedCnecParameters;
-import com.powsybl.openrao.searchtreerao.result.api.*;
-import com.powsybl.openrao.searchtreerao.result.impl.*;
+import com.powsybl.openrao.searchtreerao.result.api.NetworkActionsResult;
+import com.powsybl.openrao.searchtreerao.result.api.ObjectiveFunctionResult;
+import com.powsybl.openrao.searchtreerao.result.api.OptimizationResult;
+import com.powsybl.openrao.searchtreerao.result.api.PrePerimeterResult;
+import com.powsybl.openrao.searchtreerao.result.api.RangeActionActivationResult;
+import com.powsybl.openrao.searchtreerao.result.api.RangeActionSetpointResult;
+import com.powsybl.openrao.searchtreerao.result.api.RemedialActionActivationResult;
+import com.powsybl.openrao.searchtreerao.result.impl.AutomatonPerimeterResultImpl;
+import com.powsybl.openrao.searchtreerao.result.impl.NetworkActionsResultImpl;
+import com.powsybl.openrao.searchtreerao.result.impl.OptimizationResultImpl;
+import com.powsybl.openrao.searchtreerao.result.impl.PostPerimeterResult;
+import com.powsybl.openrao.searchtreerao.result.impl.PrePerimeterSensitivityResultImpl;
+import com.powsybl.openrao.searchtreerao.result.impl.RangeActionActivationResultImpl;
+import com.powsybl.openrao.searchtreerao.result.impl.RangeActionSetpointResultImpl;
+import com.powsybl.openrao.searchtreerao.result.impl.RemedialActionActivationResultImpl;
+import com.powsybl.openrao.searchtreerao.result.impl.SkippedOptimizationResultImpl;
 import com.powsybl.openrao.searchtreerao.searchtree.algorithms.SearchTree;
 import com.powsybl.openrao.searchtreerao.searchtree.inputs.SearchTreeInput;
 import com.powsybl.openrao.searchtreerao.searchtree.parameters.SearchTreeParameters;
 import com.powsybl.openrao.sensitivityanalysis.AppliedRemedialActions;
 import com.powsybl.openrao.util.AbstractNetworkPool;
-
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinTask;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-
-import static com.powsybl.openrao.commons.logs.OpenRaoLoggerProvider.*;
-import static com.powsybl.openrao.data.raoresult.api.ComputationStatus.DEFAULT;
-import static com.powsybl.openrao.raoapi.parameters.extensions.LoadFlowAndSensitivityParameters.getSensitivityFailureOvercost;
-import static com.powsybl.openrao.raoapi.parameters.extensions.MultithreadingParameters.getAvailableCPUs;
-import static com.powsybl.openrao.searchtreerao.commons.HvdcUtils.getHvdcRangeActionsOnHvdcLineInAcEmulation;
-import static com.powsybl.openrao.searchtreerao.commons.RaoUtil.applyRemedialActions;
 
 /**
  * @author Joris Mancini {@literal <joris.mancini at rte-france.com>}
@@ -80,102 +104,123 @@ public class CastorContingencyScenarios {
     public Map<State, PostPerimeterResult> optimizeContingencyScenarios(Network network,
                                                                        PrePerimeterResult prePerimeterSensitivityOutput,
                                                                        boolean automatonsOnly) {
-        Map<State, PostPerimeterResult> contingencyScenarioResults = new ConcurrentHashMap<>();
-        // Create a new variant
-        String newVariant = RandomizedString.getRandomizedString(CONTINGENCY_SCENARIO, network.getVariantManager().getVariantIds(), 10);
-        network.getVariantManager().cloneVariant(network.getVariantManager().getWorkingVariantId(), newVariant);
-        network.getVariantManager().setWorkingVariant(newVariant);
-        // Create an automaton simulator
-        AutomatonSimulator automatonSimulator = new AutomatonSimulator(crac, raoParameters, toolProvider, initialSensitivityOutput, prePerimeterSensitivityOutput, stateTree.getOperatorsNotSharingCras(), NUMBER_LOGGED_ELEMENTS_DURING_RAO);
-        // Go through all contingency scenarios
-        try (AbstractNetworkPool networkPool = AbstractNetworkPool.create(network, newVariant, getAvailableCPUs(raoParameters), true)) {
-            AtomicInteger remainingScenarios = new AtomicInteger(stateTree.getContingencyScenarios().size());
-            List<ForkJoinTask<Object>> tasks = stateTree.getContingencyScenarios().stream().map(optimizedScenario ->
-                networkPool.submit(() -> runScenario(prePerimeterSensitivityOutput, automatonsOnly, optimizedScenario, networkPool, automatonSimulator, contingencyScenarioResults, remainingScenarios))
-            ).toList();
-            for (ForkJoinTask<Object> task : tasks) {
-                try {
-                    task.get();
-                } catch (ExecutionException e) {
-                    throw new OpenRaoException(e);
+        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios", cx -> {
+            Map<State, PostPerimeterResult> contingencyScenarioResults = new ConcurrentHashMap<>();
+            // Create a new variant
+            String newVariant = RandomizedString.getRandomizedString(CONTINGENCY_SCENARIO, network.getVariantManager().getVariantIds(), 10);
+            network.getVariantManager().cloneVariant(network.getVariantManager().getWorkingVariantId(), newVariant);
+            network.getVariantManager().setWorkingVariant(newVariant);
+            // Create an automaton simulator
+            AutomatonSimulator automatonSimulator = new AutomatonSimulator(crac, raoParameters, toolProvider, initialSensitivityOutput, prePerimeterSensitivityOutput, stateTree.getOperatorsNotSharingCras(), NUMBER_LOGGED_ELEMENTS_DURING_RAO);
+            // Go through all contingency scenarios
+            try (AbstractNetworkPool networkPool = AbstractNetworkPool.create(network, newVariant, getAvailableCPUs(raoParameters), true)) {
+                AtomicInteger remainingScenarios = new AtomicInteger(stateTree.getContingencyScenarios().size());
+                List<ForkJoinTask<Object>> tasks = stateTree.getContingencyScenarios().stream().map(optimizedScenario ->
+                    networkPool.submit(cx, () -> runScenario(prePerimeterSensitivityOutput, automatonsOnly, optimizedScenario, networkPool, automatonSimulator, contingencyScenarioResults, remainingScenarios))
+                ).toList();
+                for (ForkJoinTask<Object> task : tasks) {
+                    try {
+                        task.get();
+                    } catch (ExecutionException e) {
+                        throw new OpenRaoException(e);
+                    }
                 }
+                networkPool.shutdownAndAwaitTermination(24, TimeUnit.HOURS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
-            networkPool.shutdownAndAwaitTermination(24, TimeUnit.HOURS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        return contingencyScenarioResults;
+            return contingencyScenarioResults;
+        });
     }
 
     private Object runScenario(PrePerimeterResult prePerimeterSensitivityOutput, boolean automatonsOnly, ContingencyScenario optimizedScenario, AbstractNetworkPool networkPool, AutomatonSimulator automatonSimulator, Map<State, PostPerimeterResult> contingencyScenarioResults, AtomicInteger remainingScenarios) throws InterruptedException {
-        Network networkClone = networkPool.getAvailableNetwork(); //This is where the threads actually wait for available networks
-        TECHNICAL_LOGS.info("Optimizing scenario post-contingency {}.", optimizedScenario.getContingency().getId());
+        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario", cx -> {
+            Network networkClone = networkPool.getAvailableNetwork(); //This is where the threads actually wait for available networks
+            TECHNICAL_LOGS.info("Optimizing scenario post-contingency {}.",
+                optimizedScenario.getContingency().getId());
 
-        // Init variables
-        Optional<State> automatonState = optimizedScenario.getAutomatonState();
-        Set<State> curativeStates = new HashSet<>();
-        optimizedScenario.getCurativePerimeters().forEach(perimeter -> curativeStates.addAll(perimeter.getAllStates()));
-        PrePerimeterResult preCurativeResult = prePerimeterSensitivityOutput;
-        double sensitivityFailureOvercost = getSensitivityFailureOvercost(raoParameters);
+            // Init variables
+            Optional<State> automatonState = optimizedScenario.getAutomatonState();
+            Set<State> curativeStates = new HashSet<>();
+            optimizedScenario.getCurativePerimeters()
+                .forEach(perimeter -> curativeStates.addAll(perimeter.getAllStates()));
+            PrePerimeterResult preCurativeResult = prePerimeterSensitivityOutput;
+            double sensitivityFailureOvercost = getSensitivityFailureOvercost(raoParameters);
 
-        // Simulate automaton instant
-        boolean autoStateSensiFailed = false;
-        if (automatonState.isPresent()) {
-            AutomatonPerimeterResultImpl automatonResult = automatonSimulator.simulateAutomatonState(automatonState.get(), curativeStates, networkClone);
-            //recompute sensi and objective function considering auto + all instants following auto
-            PostPerimeterResult postAutoResult = getResultPostState(automatonState.get(), networkClone, prePerimeterSensitivityOutput, automatonResult);
-            contingencyScenarioResults.put(automatonState.get(), postAutoResult);
-            if (automatonResult.getComputationStatus() == ComputationStatus.FAILURE) {
-                autoStateSensiFailed = true;
-            } else {
-                preCurativeResult = automatonResult.getPostAutomatonSensitivityAnalysisOutput();
-            }
-        }
-        // Do not simulate curative instant if last sensitivity analysis failed
-        // -- if there was no automaton state, check prePerimeterSensitivityOutput sensi status
-        // -- or if there was an automaton state that failed
-        if (!automatonsOnly
-            && automatonState.isEmpty()
-            && !optimizedScenario.getCurativePerimeters().isEmpty()
-            && prePerimeterSensitivityOutput.getSensitivityStatus(optimizedScenario.getCurativePerimeters().getFirst().getRaOptimisationState()) == ComputationStatus.FAILURE
-            || automatonState.isPresent()
-            && autoStateSensiFailed
-        ) {
-            curativeStates.forEach(curativeState -> contingencyScenarioResults.put(curativeState, generateSkippedPostPerimeterResult(curativeState, sensitivityFailureOvercost)));
-        } else if (!automatonsOnly) {
-            boolean allPreviousPerimetersSucceded = true;
-            PrePerimeterResult previousPerimeterResult = preCurativeResult;
-            // Optimize curative perimeters
-            Map<State, OptimizationResult> resultsPerPerimeter = new HashMap<>();
-            Map<State, PrePerimeterResult> prePerimeterResultPerPerimeter = new HashMap<>();
-            for (Perimeter curativePerimeter : optimizedScenario.getCurativePerimeters()) {
-                State curativeState = curativePerimeter.getRaOptimisationState();
-                if (previousPerimeterResult == null) {
-                    previousPerimeterResult = getPreCurativePerimeterSensitivityAnalysis(curativePerimeter).runBasedOnInitialResults(networkClone, null, stateTree.getOperatorsNotSharingCras(), null);
-                }
-                prePerimeterResultPerPerimeter.put(curativePerimeter.getRaOptimisationState(), previousPerimeterResult);
-                if (allPreviousPerimetersSucceded) {
-                    OptimizationResult curativeResult = optimizeCurativePerimeter(curativePerimeter, networkClone, previousPerimeterResult, resultsPerPerimeter, prePerimeterResultPerPerimeter);
-                    allPreviousPerimetersSucceded = curativeResult.getSensitivityStatus() == DEFAULT;
-                    applyRemedialActions(networkClone, curativeResult, curativeState);
-                    //recompute sensi and objective function considering curative + all instants following curative (useful if multi curative)
-                    PostPerimeterResult postCurativeResult = getResultPostState(curativeState, networkClone, previousPerimeterResult, curativeResult);
-                    contingencyScenarioResults.put(curativeState, postCurativeResult);
-                    previousPerimeterResult = null;
-                    if (allPreviousPerimetersSucceded) {
-                        resultsPerPerimeter.put(curativePerimeter.getRaOptimisationState(), curativeResult);
-                    }
+            // Simulate automaton instant
+            boolean autoStateSensiFailed = false;
+            if (automatonState.isPresent()) {
+                AutomatonPerimeterResultImpl automatonResult = automatonSimulator.simulateAutomatonState(
+                    automatonState.get(), curativeStates, networkClone);
+                //recompute sensi and objective function considering auto + all instants following auto
+                PostPerimeterResult postAutoResult = getResultPostState(automatonState.get(),
+                    networkClone, prePerimeterSensitivityOutput, automatonResult);
+                contingencyScenarioResults.put(automatonState.get(), postAutoResult);
+                if (automatonResult.getComputationStatus() == ComputationStatus.FAILURE) {
+                    autoStateSensiFailed = true;
                 } else {
-                    contingencyScenarioResults.put(curativeState, generateSkippedPostPerimeterResult(curativeState, sensitivityFailureOvercost));
+                    preCurativeResult = automatonResult.getPostAutomatonSensitivityAnalysisOutput();
                 }
             }
-        }
-        TECHNICAL_LOGS.debug("Remaining post-contingency scenarios to optimize: {}", remainingScenarios.decrementAndGet());
-        boolean actionWasApplied = contingencyScenarioResults.entrySet().stream()
-            .filter(stateAndResult -> stateAndResult.getKey().getContingency().orElseThrow().equals(optimizedScenario.getContingency()))
-            .anyMatch(this::isAnyActionApplied);
-        networkPool.releaseUsedNetwork(networkClone, actionWasApplied);
-        return null;
+            // Do not simulate curative instant if last sensitivity analysis failed
+            // -- if there was no automaton state, check prePerimeterSensitivityOutput sensi status
+            // -- or if there was an automaton state that failed
+            if (!automatonsOnly
+                && automatonState.isEmpty()
+                && !optimizedScenario.getCurativePerimeters().isEmpty()
+                && prePerimeterSensitivityOutput.getSensitivityStatus(
+                optimizedScenario.getCurativePerimeters().getFirst().getRaOptimisationState())
+                == ComputationStatus.FAILURE
+                || automatonState.isPresent()
+                && autoStateSensiFailed
+            ) {
+                curativeStates.forEach(curativeState -> contingencyScenarioResults.put(curativeState,
+                    generateSkippedPostPerimeterResult(curativeState, sensitivityFailureOvercost)));
+            } else if (!automatonsOnly) {
+                boolean allPreviousPerimetersSucceded = true;
+                PrePerimeterResult previousPerimeterResult = preCurativeResult;
+                // Optimize curative perimeters
+                Map<State, OptimizationResult> resultsPerPerimeter = new HashMap<>();
+                Map<State, PrePerimeterResult> prePerimeterResultPerPerimeter = new HashMap<>();
+                for (Perimeter curativePerimeter : optimizedScenario.getCurativePerimeters()) {
+                    State curativeState = curativePerimeter.getRaOptimisationState();
+                    if (previousPerimeterResult == null) {
+                        previousPerimeterResult = getPreCurativePerimeterSensitivityAnalysis(
+                        curativePerimeter).runBasedOnInitialResults(networkClone, null,
+                        stateTree.getOperatorsNotSharingCras(), null);
+                    }
+                    prePerimeterResultPerPerimeter.put(curativePerimeter.getRaOptimisationState(),
+                        previousPerimeterResult);
+                    if (allPreviousPerimetersSucceded) {
+                        OptimizationResult curativeResult = optimizeCurativePerimeter(curativePerimeter,
+                            networkClone, previousPerimeterResult, resultsPerPerimeter,
+                            prePerimeterResultPerPerimeter);
+                        allPreviousPerimetersSucceded = curativeResult.getSensitivityStatus() == DEFAULT;
+                        applyRemedialActions(networkClone, curativeResult, curativeState);
+                        //recompute sensi and objective function considering curative + all instants following curative (useful if multi curative)
+                        PostPerimeterResult postCurativeResult = getResultPostState(curativeState,
+                            networkClone, previousPerimeterResult, curativeResult);
+                        contingencyScenarioResults.put(curativeState, postCurativeResult);
+                        previousPerimeterResult = null;
+                        if (allPreviousPerimetersSucceded) {
+                            resultsPerPerimeter.put(curativePerimeter.getRaOptimisationState(), curativeResult);
+                        }
+                    } else {
+                        contingencyScenarioResults.put(curativeState,
+                            generateSkippedPostPerimeterResult(curativeState, sensitivityFailureOvercost));
+                    }
+                }
+            }
+
+            TECHNICAL_LOGS.debug("Remaining post-contingency scenarios to optimize: {}",
+                 remainingScenarios.decrementAndGet());
+            boolean actionWasApplied = contingencyScenarioResults.entrySet().stream()
+                .filter(stateAndResult -> stateAndResult.getKey().getContingency().orElseThrow()
+                    .equals(optimizedScenario.getContingency()))
+                .anyMatch(this::isAnyActionApplied);
+            networkPool.releaseUsedNetwork(networkClone, actionWasApplied);
+            return null;
+        });
     }
 
     private boolean isAnyActionApplied(Map.Entry<State, PostPerimeterResult> stateAndResult) {
@@ -194,26 +239,30 @@ public class CastorContingencyScenarios {
     }
 
     private PostPerimeterResult getResultPostState(State state, Network networkClone, PrePerimeterResult prePerimeterSensitivityOutput, OptimizationResult optimizationResult) {
-        // if it's the last instant, no need to recompute things because the optimization result already contains all following states. (none)
-        if (state.getInstant().equals(crac.getLastInstant())) {
-            return new PostPerimeterResult(optimizationResult,
-                new PrePerimeterSensitivityResultImpl(optimizationResult, optimizationResult, RangeActionSetpointResultImpl.buildFromActivationOfRangeActionAtState(optimizationResult, state), optimizationResult));
-        }
-        Set<State> statesToConsider = new HashSet<>();
-        statesToConsider.add(state);
-        crac.getStates(state.getContingency().orElseThrow()).stream()
-            .filter(s -> s.getInstant().comesAfter(state.getInstant()))
-            .forEach(statesToConsider::add);
-        PostPerimeterSensitivityAnalysis postPerimeterSensitivityAnalysis = new PostPerimeterSensitivityAnalysis(crac, statesToConsider, raoParameters, toolProvider, false);
+        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.postStateEvaluation", cx -> {
+          // if it's the last instant, no need to recompute things because the optimization result already contains all following states. (none)
+            if (state.getInstant().equals(crac.getLastInstant())) {
+                return new PostPerimeterResult(optimizationResult,
+                    new PrePerimeterSensitivityResultImpl(optimizationResult, optimizationResult,
+                      RangeActionSetpointResultImpl.buildFromActivationOfRangeActionAtState(
+                        optimizationResult, state), optimizationResult));
+            }
+            Set<State> statesToConsider = new HashSet<>();
+            statesToConsider.add(state);
+            crac.getStates(state.getContingency().orElseThrow()).stream()
+              .filter(s -> s.getInstant().comesAfter(state.getInstant()))
+              .forEach(statesToConsider::add);
+            PostPerimeterSensitivityAnalysis postPerimeterSensitivityAnalysis = new PostPerimeterSensitivityAnalysis(
+                crac, statesToConsider, raoParameters, toolProvider, false);
 
-        return postPerimeterSensitivityAnalysis.runBasedOnInitialPreviousAndOptimizationResults(
-            networkClone,
-            initialSensitivityOutput,
-            prePerimeterSensitivityOutput,
-            stateTree.getOperatorsNotSharingCras(),
-            optimizationResult,
-            new AppliedRemedialActions());
-
+            return postPerimeterSensitivityAnalysis.runBasedOnInitialPreviousAndOptimizationResults(
+                networkClone,
+                initialSensitivityOutput,
+                prePerimeterSensitivityOutput,
+                stateTree.getOperatorsNotSharingCras(),
+                optimizationResult,
+                  new AppliedRemedialActions());
+        });
     }
 
     private PrePerimeterSensitivityAnalysis getPreCurativePerimeterSensitivityAnalysis(Perimeter curativePerimeter) {
@@ -230,66 +279,89 @@ public class CastorContingencyScenarios {
                                                          PrePerimeterResult prePerimeterSensitivityOutput,
                                                          Map<State, OptimizationResult> resultsPerPerimeter,
                                                          Map<State, PrePerimeterResult> prePerimeterResultPerPerimeter) {
-        State curativeState = curativePerimeter.getRaOptimisationState();
-        TECHNICAL_LOGS.info("Optimizing curative state {}.", curativeState.getId());
+        return OpenTelemetryReporter.withSpan("rao.optimizeContingencyScenarios.runContingencyScenario.optimizeCurativePerimeter", cx -> {
+            State curativeState = curativePerimeter.getRaOptimisationState();
+            TECHNICAL_LOGS.info("Optimizing curative state {}.", curativeState.getId());
 
-        Set<State> filteredStates = curativePerimeter.getAllStates().stream()
-            .filter(state -> !prePerimeterSensitivityOutput.getSensitivityStatus(state).equals(ComputationStatus.FAILURE))
-            .collect(Collectors.toSet());
+            Set<State> filteredStates = curativePerimeter.getAllStates().stream()
+                .filter(state -> !prePerimeterSensitivityOutput.getSensitivityStatus(state)
+                    .equals(ComputationStatus.FAILURE))
+                .collect(Collectors.toSet());
 
-        Set<FlowCnec> flowCnecs = crac.getFlowCnecs().stream()
-            .filter(flowCnec -> filteredStates.contains(flowCnec.getState()))
-            .collect(Collectors.toSet());
+            Set<FlowCnec> flowCnecs = crac.getFlowCnecs().stream()
+                .filter(flowCnec -> filteredStates.contains(flowCnec.getState()))
+                .collect(Collectors.toSet());
 
-        Set<FlowCnec> loopFlowCnecs = AbstractOptimizationPerimeter.getLoopFlowCnecs(flowCnecs, raoParameters, network);
-        Map<RangeAction<?>, Double> rangeActionSetpointMap = crac.getRangeActions(curativeState)
-            .stream()
-            .collect(Collectors.toMap(rangeAction -> rangeAction, prePerimeterSensitivityOutput::getSetpoint));
-        RangeActionSetpointResult rangeActionSetpointResult = new RangeActionSetpointResultImpl(rangeActionSetpointMap);
-        RangeActionActivationResult rangeActionsResult = new RangeActionActivationResultImpl(rangeActionSetpointResult);
-        RemedialActionActivationResult remedialActionActivationResult = new RemedialActionActivationResultImpl(rangeActionsResult, new NetworkActionsResultImpl(Map.of()));
+            Set<FlowCnec> loopFlowCnecs = AbstractOptimizationPerimeter.getLoopFlowCnecs(flowCnecs,
+                raoParameters, network);
+            Map<RangeAction<?>, Double> rangeActionSetpointMap = crac.getRangeActions(curativeState)
+                .stream()
+                .collect(Collectors.toMap(rangeAction -> rangeAction,
+                    prePerimeterSensitivityOutput::getSetpoint));
+            RangeActionSetpointResult rangeActionSetpointResult = new RangeActionSetpointResultImpl(
+                rangeActionSetpointMap);
+            RangeActionActivationResult rangeActionsResult = new RangeActionActivationResultImpl(
+                rangeActionSetpointResult);
+            RemedialActionActivationResult remedialActionActivationResult = new RemedialActionActivationResultImpl(
+                rangeActionsResult, new NetworkActionsResultImpl(Map.of()));
 
-        ObjectiveFunction objectiveFunction = ObjectiveFunction.build(flowCnecs, loopFlowCnecs, initialSensitivityOutput, prePerimeterSensitivityOutput, stateTree.getOperatorsNotSharingCras(), raoParameters, curativePerimeter.getAllStates());
-        ObjectiveFunctionResult objectiveFunctionResult = objectiveFunction.evaluate(prePerimeterSensitivityOutput, remedialActionActivationResult);
-        boolean stopCriterionReached = isStopCriterionChecked(objectiveFunctionResult, curativeTreeParameters);
-        if (stopCriterionReached) {
-            NetworkActionsResult networkActionsResult = new NetworkActionsResultImpl(Map.of());
-            return new OptimizationResultImpl(objectiveFunctionResult, prePerimeterSensitivityOutput, prePerimeterSensitivityOutput, networkActionsResult, rangeActionsResult);
-        }
+            ObjectiveFunction objectiveFunction = ObjectiveFunction.build(flowCnecs, loopFlowCnecs,
+                initialSensitivityOutput, prePerimeterSensitivityOutput,
+                stateTree.getOperatorsNotSharingCras(), raoParameters, curativePerimeter.getAllStates());
+            ObjectiveFunctionResult objectiveFunctionResult = objectiveFunction.evaluate(
+                prePerimeterSensitivityOutput, remedialActionActivationResult);
+            boolean stopCriterionReached = isStopCriterionChecked(objectiveFunctionResult,
+                curativeTreeParameters);
+            if (stopCriterionReached) {
+                NetworkActionsResult networkActionsResult = new NetworkActionsResultImpl(Map.of());
+                return new OptimizationResultImpl(objectiveFunctionResult, prePerimeterSensitivityOutput,
+                    prePerimeterSensitivityOutput, networkActionsResult, rangeActionsResult);
+            }
 
-        OptimizationPerimeter optPerimeter = CurativeOptimizationPerimeter.buildForStates(curativeState, curativePerimeter.getAllStates(), crac, network, raoParameters, prePerimeterSensitivityOutput);
+            OptimizationPerimeter optPerimeter = CurativeOptimizationPerimeter.buildForStates(
+                curativeState, curativePerimeter.getAllStates(), crac, network, raoParameters,
+                prePerimeterSensitivityOutput);
 
-        SearchTreeParameters.SearchTreeParametersBuilder searchTreeParametersBuilder = SearchTreeParameters.create()
-            .withConstantParametersOverAllRao(raoParameters, crac)
-            .withTreeParameters(curativeTreeParameters)
-            .withUnoptimizedCnecParameters(UnoptimizedCnecParameters.build(raoParameters.getNotOptimizedCnecsParameters(), stateTree.getOperatorsNotSharingCras()));
+            SearchTreeParameters.SearchTreeParametersBuilder searchTreeParametersBuilder = SearchTreeParameters.create()
+                .withConstantParametersOverAllRao(raoParameters, crac)
+                .withTreeParameters(curativeTreeParameters)
+                .withUnoptimizedCnecParameters(
+                    UnoptimizedCnecParameters.build(raoParameters.getNotOptimizedCnecsParameters(),
+                        stateTree.getOperatorsNotSharingCras()));
 
-        if (!getHvdcRangeActionsOnHvdcLineInAcEmulation(crac.getHvdcRangeActions(), network).isEmpty()) {
-            LoadFlowAndSensitivityParameters loadFlowAndSensitivityParameters =
-                raoParameters.hasExtension(OpenRaoSearchTreeParameters.class)
-                    ? raoParameters.getExtension(OpenRaoSearchTreeParameters.class).getLoadFlowAndSensitivityParameters()
-                    : new LoadFlowAndSensitivityParameters();
-            searchTreeParametersBuilder.withLoadFlowAndSensitivityParameters(loadFlowAndSensitivityParameters);
-        }
+            if (!getHvdcRangeActionsOnHvdcLineInAcEmulation(crac.getHvdcRangeActions(),
+                network).isEmpty()) {
+                LoadFlowAndSensitivityParameters loadFlowAndSensitivityParameters =
+                    raoParameters.hasExtension(OpenRaoSearchTreeParameters.class)
+                      ? raoParameters.getExtension(OpenRaoSearchTreeParameters.class)
+                      .getLoadFlowAndSensitivityParameters()
+                      : new LoadFlowAndSensitivityParameters();
+                searchTreeParametersBuilder.withLoadFlowAndSensitivityParameters(
+                    loadFlowAndSensitivityParameters);
+            }
 
-        SearchTreeParameters searchTreeParameters = searchTreeParametersBuilder.build();
+            SearchTreeParameters searchTreeParameters = searchTreeParametersBuilder.build();
 
-        searchTreeParameters.decreaseRemedialActionUsageLimits(resultsPerPerimeter, prePerimeterResultPerPerimeter);
+            searchTreeParameters.decreaseRemedialActionUsageLimits(resultsPerPerimeter,
+                prePerimeterResultPerPerimeter);
 
-        SearchTreeInput searchTreeInput = SearchTreeInput.create()
-            .withNetwork(network)
-            .withOptimizationPerimeter(optPerimeter)
-            .withInitialFlowResult(initialSensitivityOutput)
-            .withPrePerimeterResult(prePerimeterSensitivityOutput)
-            .withPreOptimizationAppliedNetworkActions(new AppliedRemedialActions()) //no remedial Action applied
-            .withObjectiveFunction(objectiveFunction)
-            .withToolProvider(toolProvider)
-            .withOutageInstant(crac.getOutageInstant())
-            .build();
+            SearchTreeInput searchTreeInput = SearchTreeInput.create()
+                .withNetwork(network)
+                .withOptimizationPerimeter(optPerimeter)
+                .withInitialFlowResult(initialSensitivityOutput)
+                .withPrePerimeterResult(prePerimeterSensitivityOutput)
+                .withPreOptimizationAppliedNetworkActions(
+                    new AppliedRemedialActions()) //no remedial Action applied
+                .withObjectiveFunction(objectiveFunction)
+                .withToolProvider(toolProvider)
+                .withOutageInstant(crac.getOutageInstant())
+                .build();
 
-        OptimizationResult result = new SearchTree(searchTreeInput, searchTreeParameters, false).run().join();
-        TECHNICAL_LOGS.info("Curative state {} has been optimized.", curativeState.getId());
-        return result;
+            OptimizationResult result = new SearchTree(searchTreeInput, searchTreeParameters, false).run()
+                .join();
+            TECHNICAL_LOGS.info("Curative state {} has been optimized.", curativeState.getId());
+            return result;
+        });
     }
 
     static boolean isStopCriterionChecked(ObjectiveFunctionResult result, TreeParameters treeParameters) {

@@ -7,6 +7,7 @@
 
 package com.powsybl.openrao.searchtreerao.linearoptimisation.algorithms;
 
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.rangeaction.PstRangeAction;
 import com.powsybl.openrao.data.raoresult.api.ComputationStatus;
 import com.powsybl.openrao.raoapi.parameters.extensions.SearchTreeRaoRangeActionsOptimizationParameters.PstModel;
@@ -149,10 +150,12 @@ public final class IteratingLinearOptimizer {
     }
 
     private static LinearProblemStatus solveLinearProblem(LinearProblem linearProblem, int iteration) {
-        TECHNICAL_LOGS.debug("Iteration {}: linear optimization [start]", iteration);
-        LinearProblemStatus status = linearProblem.solve();
-        TECHNICAL_LOGS.debug("Iteration {}: linear optimization [end]", iteration);
-        return status;
+        return OpenTelemetryReporter.withSpan("rao.iteratingLinearSolver.solveLinearProblem", cx -> {
+            TECHNICAL_LOGS.debug("Iteration {}: linear optimization [start]", iteration);
+            LinearProblemStatus status = linearProblem.solve();
+            TECHNICAL_LOGS.debug("Iteration {}: linear optimization [end]", iteration);
+            return status;
+        });
     }
 
     private static boolean hasAnyRangeActionChanged(RangeActionActivationResult newRangeActionActivationResult, RangeActionActivationResult oldRangeActionActivationResult, OptimizationPerimeter optimizationContext) {

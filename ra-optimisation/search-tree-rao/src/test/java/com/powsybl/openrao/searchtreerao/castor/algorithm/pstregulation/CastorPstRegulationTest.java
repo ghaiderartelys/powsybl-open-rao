@@ -16,6 +16,7 @@ import com.powsybl.openrao.commons.logs.RaoBusinessLogs;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.Instant;
 import com.powsybl.openrao.data.crac.api.State;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.rangeaction.PstRangeAction;
 import com.powsybl.openrao.data.raoresult.api.RaoResult;
 import com.powsybl.openrao.raoapi.json.JsonRaoParameters;
@@ -41,7 +42,7 @@ class CastorPstRegulationTest {
     @Test
     void testPstRegulationWithSeveralContingencyScenarios() throws IOException {
         Network network = Network.read("4NodesSeries.uct", getClass().getResourceAsStream("/network/4NodesSeries.uct"));
-        Crac crac = Crac.read("crac-for-regulation.json", getClass().getResourceAsStream("/crac/crac-for-regulation.json"), network);
+        Crac crac = Crac.read("crac-for-regulation.json", new TmpFile("test", getClass().getResourceAsStream("/crac/crac-for-regulation.json")), network);
         RaoResult raoResult = RaoResult.read(getClass().getResourceAsStream("/raoResult/raoResultPreRegulation.json"), crac);
         RaoParameters raoParameters = JsonRaoParameters.read(getClass().getResourceAsStream("/parameters/RaoParameters_ac_3pstsRegulation.json"));
         Instant curativeInstant = crac.getLastInstant();

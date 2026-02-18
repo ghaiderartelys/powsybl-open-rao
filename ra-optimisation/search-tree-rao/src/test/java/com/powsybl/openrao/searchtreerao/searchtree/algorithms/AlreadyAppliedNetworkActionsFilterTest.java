@@ -7,15 +7,6 @@
 
 package com.powsybl.openrao.searchtreerao.searchtree.algorithms;
 
-import com.powsybl.openrao.searchtreerao.commons.NetworkActionCombination;
-import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
-
 import static com.powsybl.openrao.searchtreerao.searchtree.algorithms.NetworkActionCombinationsUtils.COMB_2_FR;
 import static com.powsybl.openrao.searchtreerao.searchtree.algorithms.NetworkActionCombinationsUtils.COMB_2_FR_DE_BE;
 import static com.powsybl.openrao.searchtreerao.searchtree.algorithms.NetworkActionCombinationsUtils.COMB_3_FR;
@@ -25,6 +16,14 @@ import static com.powsybl.openrao.searchtreerao.searchtree.algorithms.NetworkAct
 import static com.powsybl.openrao.searchtreerao.searchtree.algorithms.NetworkActionCombinationsUtils.IND_FR_DE;
 import static com.powsybl.openrao.searchtreerao.searchtree.algorithms.NetworkActionCombinationsUtils.NA_FR_1;
 import static org.mockito.Mockito.mock;
+
+import com.powsybl.openrao.searchtreerao.commons.NetworkActionCombination;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 /**
  * @author Thomas Bouquet {@literal <thomas.bouquet at rte-france.com>}

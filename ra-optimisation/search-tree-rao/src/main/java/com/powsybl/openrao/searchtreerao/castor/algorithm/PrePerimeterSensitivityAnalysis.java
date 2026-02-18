@@ -7,6 +7,7 @@
 
 package com.powsybl.openrao.searchtreerao.castor.algorithm;
 
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.State;
 import com.powsybl.openrao.data.crac.api.cnec.FlowCnec;
@@ -47,7 +48,9 @@ public class PrePerimeterSensitivityAnalysis extends AbstractMultiPerimeterSensi
     }
 
     public PrePerimeterResult runInitialSensitivityAnalysis(Network network) {
-        return runInitialSensitivityAnalysis(network, Set.of());
+        return OpenTelemetryReporter.withSpan("rao.runInitialSensitivityAnalysis", cx -> {
+            return runInitialSensitivityAnalysis(network, Set.of());
+        });
     }
 
     public PrePerimeterResult runInitialSensitivityAnalysis(Network network, Set<State> optimizedStates) {
@@ -70,11 +73,12 @@ public class PrePerimeterSensitivityAnalysis extends AbstractMultiPerimeterSensi
                                                        FlowResult initialFlowResult,
                                                        Set<String> operatorsNotSharingCras,
                                                        AppliedRemedialActions appliedCurativeRemedialActions) {
+        return OpenTelemetryReporter.withSpan("rao.runSensitivityAnalysisBasedOnInitialResults", cx -> {
+            sensitivityComputer = buildSensitivityComputer(initialFlowResult, appliedCurativeRemedialActions);
+            objectiveFunction = ObjectiveFunction.build(flowCnecs, toolProvider.getLoopFlowCnecs(flowCnecs), initialFlowResult, initialFlowResult, operatorsNotSharingCras, raoParameters, Set.of(crac.getPreventiveState()));
 
-        sensitivityComputer = buildSensitivityComputer(initialFlowResult, appliedCurativeRemedialActions);
-        objectiveFunction = ObjectiveFunction.build(flowCnecs, toolProvider.getLoopFlowCnecs(flowCnecs), initialFlowResult, initialFlowResult, operatorsNotSharingCras, raoParameters, Set.of(crac.getPreventiveState()));
-
-        return runAndGetResult(network, objectiveFunction);
+            return runAndGetResult(network, objectiveFunction);
+        });
     }
 
     public ObjectiveFunction getObjectiveFunction() {

@@ -13,6 +13,7 @@ import com.powsybl.loadflow.LoadFlowParameters;
 import com.powsybl.openloadflow.OpenLoadFlowParameters;
 import com.powsybl.openrao.commons.OpenRaoException;
 import com.powsybl.openrao.commons.Unit;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.Identifiable;
 import com.powsybl.openrao.data.crac.api.Instant;
@@ -78,27 +79,36 @@ public final class CastorPstRegulation {
         applyOptimalRemedialActionsForState(network, raoResult, crac.getPreventiveState());
 
         // regulate PSTs for each curative scenario in parallel
-        try (AbstractNetworkPool networkPool = AbstractNetworkPool.create(network, network.getVariantManager().getWorkingVariantId(), getNumberOfThreads(crac, raoParameters), true)) {
-            List<ForkJoinTask<PstRegulationResult>> tasks = statesToRegulate.stream().map(pstRegulationInput ->
-                networkPool.submit(() -> regulatePstsForContingencyScenario(pstRegulationInput, crac, rangeActionsToRegulate, raoResult, loadFlowParameters, networkPool))
-            ).toList();
-            Set<PstRegulationResult> pstRegulationResults = new HashSet<>();
-            for (ForkJoinTask<PstRegulationResult> task : tasks) {
-                try {
-                    pstRegulationResults.add(task.get());
-                } catch (ExecutionException e) {
-                    throw new OpenRaoException(e);
+        return OpenTelemetryReporter.withSpan("rao.regulatePstsParallel", cx -> {
+            try (AbstractNetworkPool networkPool = AbstractNetworkPool.create(network,
+                network.getVariantManager().getWorkingVariantId(),
+                getNumberOfThreads(crac, raoParameters), true)) {
+                List<ForkJoinTask<PstRegulationResult>> tasks = statesToRegulate.stream()
+                    .map(pstRegulationInput ->
+                        networkPool.submit(cx,
+                            () -> regulatePstsForContingencyScenario(pstRegulationInput, crac,
+                                rangeActionsToRegulate, raoResult, loadFlowParameters, networkPool))
+                    ).toList();
+                Set<PstRegulationResult> pstRegulationResults = new HashSet<>();
+                for (ForkJoinTask<PstRegulationResult> task : tasks) {
+                    try {
+                        pstRegulationResults.add(task.get());
+                    } catch (ExecutionException e) {
+                        throw new OpenRaoException(e);
+                    }
                 }
+                networkPool.shutdownAndAwaitTermination(1000, TimeUnit.SECONDS);
+                return pstRegulationResults;
+            } catch (Exception e) {
+                Thread.currentThread().interrupt();
+                BUSINESS_WARNS.warn(
+                    "An error occurred during PST regulation, pre-regulation RAO result will be kept.");
+                return Set.of();
+            } finally {
+                loadFlowParameters.setPhaseShifterRegulationOn(
+                    initialPhaseShifterRegulationOnValue);
             }
-            networkPool.shutdownAndAwaitTermination(1000, TimeUnit.SECONDS);
-            return pstRegulationResults;
-        } catch (Exception e) {
-            Thread.currentThread().interrupt();
-            BUSINESS_WARNS.warn("An error occurred during PST regulation, pre-regulation RAO result will be kept.");
-            return Set.of();
-        } finally {
-            loadFlowParameters.setPhaseShifterRegulationOn(initialPhaseShifterRegulationOnValue);
-        }
+        });
     }
 
     /**

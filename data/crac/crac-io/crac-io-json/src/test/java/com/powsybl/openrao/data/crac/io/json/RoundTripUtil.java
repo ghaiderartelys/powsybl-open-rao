@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.powsybl.iidm.network.Network;
 import com.powsybl.openrao.data.crac.api.Crac;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.parameters.CracCreationParameters;
 import com.powsybl.openrao.data.crac.io.json.serializers.CracJsonSerializerModule;
 
@@ -40,11 +41,10 @@ public final class RoundTripUtil {
      * @return the object exported and re-imported
      */
     static Crac implicitJsonRoundTrip(Crac object, Network network) {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        object.write("JSON", outputStream);
-
-        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray())) {
-            return Crac.read("crac.json", inputStream, network);
+        try (TmpFile tempFile = new TmpFile("crac-roundtrip")) {
+            object.write("JSON", tempFile.getOutputStream());
+            //TODO close ?
+            return Crac.read("crac.json", tempFile, network);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

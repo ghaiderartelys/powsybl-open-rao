@@ -24,6 +24,7 @@ import com.powsybl.openrao.data.crac.api.InstantKind;
 import com.powsybl.openrao.data.crac.api.NetworkElement;
 import com.powsybl.openrao.data.crac.api.RaUsageLimits;
 import com.powsybl.openrao.data.crac.api.RemedialAction;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.networkaction.NetworkAction;
 import com.powsybl.openrao.data.crac.api.rangeaction.HvdcRangeAction;
 import com.powsybl.openrao.data.crac.api.usagerule.OnConstraint;
@@ -52,7 +53,6 @@ import org.mockito.Mockito;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Paths;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -98,7 +98,7 @@ class CimCracCreatorTest {
     }
 
     private void setUp(String fileName, Network network, CracCreationParameters cracCreationParameters) throws IOException {
-        InputStream is = getClass().getResourceAsStream(fileName);
+        var is = getResourceAsStream(fileName);
         cracCreationContext = (CimCracCreationContext) Crac.readWithContext(fileName, is, network, cracCreationParameters);
         importedCrac = cracCreationContext.getCrac();
         if (!Objects.isNull(importedCrac)) {
@@ -123,7 +123,7 @@ class CimCracCreatorTest {
         Mockito.when(cimCracCreationParameters.getRangeActionGroups()).thenReturn(rangeActionGroups);
         Mockito.when(cimCracCreationParameters.getTimeseriesMrids()).thenReturn(Collections.emptySet());
         Mockito.when(cimCracCreationParameters.getTimestamp()).thenReturn(timestamp);
-        InputStream is = getClass().getResourceAsStream(fileName);
+        var is = getResourceAsStream(fileName);
         cracCreationContext = (CimCracCreationContext) Crac.readWithContext(fileName, is, network, cracCreationParameters);
         importedCrac = cracCreationContext.getCrac();
         preventiveInstant = importedCrac.getInstant(PREVENTIVE_INSTANT_ID);
@@ -140,7 +140,7 @@ class CimCracCreatorTest {
         Mockito.when(cimCracCreationParameters.getRangeActionSpeedSet()).thenReturn(rangeActionSpeeds);
         Mockito.when(cimCracCreationParameters.getTimeseriesMrids()).thenReturn(Collections.emptySet());
         Mockito.when(cimCracCreationParameters.getTimestamp()).thenReturn(timestamp);
-        InputStream is = getClass().getResourceAsStream(fileName);
+        var is = getResourceAsStream(fileName);
         cracCreationContext = (CimCracCreationContext) Crac.readWithContext(fileName, is, network, cracCreationParameters);
         importedCrac = cracCreationContext.getCrac();
         preventiveInstant = importedCrac.getInstant(PREVENTIVE_INSTANT_ID);
@@ -156,7 +156,7 @@ class CimCracCreatorTest {
         Mockito.when(cracCreationParameters.getExtension(CimCracCreationParameters.class)).thenReturn(cimCracCreationParameters);
         Mockito.when(cimCracCreationParameters.getTimeseriesMrids()).thenReturn(timeseriesMrids);
         Mockito.when(cimCracCreationParameters.getTimestamp()).thenReturn(timestamp);
-        InputStream is = getClass().getResourceAsStream(fileName);
+        var is = getResourceAsStream(fileName);
         cracCreationContext = (CimCracCreationContext) Crac.readWithContext(fileName, is, network, cracCreationParameters);
         importedCrac = cracCreationContext.getCrac();
         preventiveInstant = importedCrac.getInstant(PREVENTIVE_INSTANT_ID);
@@ -171,7 +171,7 @@ class CimCracCreatorTest {
         Mockito.when(cracCreationParameters.getExtension(CimCracCreationParameters.class)).thenReturn(cimCracCreationParameters);
         Mockito.when(cimCracCreationParameters.getTimeseriesMrids()).thenReturn(Collections.emptySet());
         Mockito.when(cimCracCreationParameters.getTimestamp()).thenReturn(timestamp);
-        InputStream is = getClass().getResourceAsStream(fileName);
+        var is = getResourceAsStream(fileName);
         cracCreationContext = (CimCracCreationContext) Crac.readWithContext(fileName, is, network, cracCreationParameters);
         importedCrac = cracCreationContext.getCrac();
         if (!Objects.isNull(importedCrac)) {
@@ -1317,4 +1317,9 @@ class CimCracCreatorTest {
         assertEquals("curative", usageRules2.getFirst().getInstant().getId());
         assertEquals("preventive", usageRules2.getLast().getInstant().getId());
     }
+
+    protected TmpFile getResourceAsStream(String s) throws IOException {
+        return new TmpFile("test", getClass().getResourceAsStream(s));
+    }
+
 }

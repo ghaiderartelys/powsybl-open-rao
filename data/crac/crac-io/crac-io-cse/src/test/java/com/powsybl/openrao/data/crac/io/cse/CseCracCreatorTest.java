@@ -14,6 +14,7 @@ import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.Instant;
 import com.powsybl.openrao.data.crac.api.RaUsageLimits;
 import com.powsybl.openrao.data.crac.api.RemedialAction;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.usagerule.OnConstraint;
 import com.powsybl.openrao.data.crac.api.usagerule.OnFlowConstraintInCountry;
 import com.powsybl.openrao.data.crac.api.usagerule.OnInstant;
@@ -36,7 +37,6 @@ import com.powsybl.openrao.data.crac.io.cse.remedialaction.CsePstCreationContext
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -62,7 +62,7 @@ class CseCracCreatorTest {
 
     private void setUp(String cracFileName, String networkFileName) throws IOException {
         Network network = Network.read(networkFileName, getClass().getResourceAsStream(networkFileName));
-        InputStream is = getClass().getResourceAsStream(cracFileName);
+        var is = new TmpFile("test", getClass().getResourceAsStream(cracFileName));
         cracCreationContext = (CseCracCreationContext) Crac.readWithContext(cracFileName, is, network, parameters);
         importedCrac = cracCreationContext.getCrac();
         preventiveInstant = importedCrac.getInstant(PREVENTIVE_INSTANT_ID);

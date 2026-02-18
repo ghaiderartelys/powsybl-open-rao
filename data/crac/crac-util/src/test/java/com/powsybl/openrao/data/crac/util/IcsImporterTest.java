@@ -12,6 +12,7 @@ import com.powsybl.iidm.network.Network;
 import com.powsybl.openrao.commons.TemporalData;
 import com.powsybl.openrao.commons.TemporalDataImpl;
 import com.powsybl.openrao.data.crac.api.Crac;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.api.rangeaction.InjectionRangeAction;
 import com.powsybl.openrao.data.crac.api.rangeaction.VariationDirection;
 import com.powsybl.openrao.data.intertemporalconstraints.GeneratorConstraints;
@@ -59,8 +60,8 @@ class IcsImporterTest {
         networkFilePathPostIcsImport1 = TMP_DIR + networkFilePath1.split(".uct")[0].concat("_modified.jiidm");
         networkFilePathPostIcsImport2 = TMP_DIR + networkFilePath2.split(".uct")[0].concat("_modified.jiidm");
 
-        crac1 = Crac.read("/crac/crac-0030.json", IcsImporterTest.class.getResourceAsStream("/crac/crac-0030.json"), network1);
-        crac2 = Crac.read("/crac/crac-0130.json", IcsImporterTest.class.getResourceAsStream("/crac/crac-0130.json"), network2);
+        crac1 = Crac.read("/crac/crac-0030.json", new TmpFile("30", IcsImporterTest.class.getResourceAsStream("/crac/crac-0030.json")), network1);
+        crac2 = Crac.read("/crac/crac-0130.json", new TmpFile("31", IcsImporterTest.class.getResourceAsStream("/crac/crac-0130.json")), network2);
 
         OffsetDateTime timestamp1 = OffsetDateTime.of(2025, 2, 13, 0, 30, 0, 0, ZoneOffset.UTC);
         OffsetDateTime timestamp2 = OffsetDateTime.of(2025, 2, 13, 1, 30, 0, 0, ZoneOffset.UTC);

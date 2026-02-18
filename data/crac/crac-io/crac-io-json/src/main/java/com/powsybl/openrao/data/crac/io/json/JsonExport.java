@@ -7,6 +7,7 @@
 
 package com.powsybl.openrao.data.crac.io.json;
 
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.io.json.serializers.CracJsonSerializerModule;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.io.Exporter;
@@ -39,15 +40,17 @@ public class JsonExport implements Exporter {
 
     @Override
     public void exportData(Crac crac, OutputStream outputStream) {
-        try {
-            ObjectMapper objectMapper = createObjectMapper();
-            objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-            SimpleModule module = new CracJsonSerializerModule();
-            objectMapper.registerModule(module);
-            ObjectWriter writer = objectMapper.writerWithDefaultPrettyPrinter();
-            writer.writeValue(outputStream, crac);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        OpenTelemetryReporter.withSpan("rao.exportJsonCrac", cx -> {
+            try {
+                ObjectMapper objectMapper = createObjectMapper();
+                objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+                SimpleModule module = new CracJsonSerializerModule();
+                objectMapper.registerModule(module);
+                ObjectWriter writer = objectMapper.writerWithDefaultPrettyPrinter();
+                writer.writeValue(outputStream, crac);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 }

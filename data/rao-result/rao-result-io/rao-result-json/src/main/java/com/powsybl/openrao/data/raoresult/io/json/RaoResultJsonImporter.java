@@ -9,6 +9,7 @@ package com.powsybl.openrao.data.raoresult.io.json;
 
 import com.google.auto.service.AutoService;
 import com.powsybl.openrao.commons.OpenRaoException;
+import com.powsybl.openrao.commons.opentelemetry.OpenTelemetryReporter;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.raoresult.api.io.Importer;
 import com.powsybl.openrao.data.raoresult.api.RaoResult;
@@ -49,14 +50,16 @@ public class RaoResultJsonImporter implements Importer {
 
     @Override
     public RaoResult importData(InputStream inputStream, Crac crac) {
-        try {
-            ObjectMapper objectMapper = createObjectMapper();
-            SimpleModule module = new SimpleModule();
-            module.addDeserializer(RaoResult.class, new RaoResultDeserializer(crac));
-            objectMapper.registerModule(module);
-            return objectMapper.readValue(inputStream, RaoResult.class);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return OpenTelemetryReporter.withSpan("rao.importJsonRaoResult", cx -> {
+            try {
+                ObjectMapper objectMapper = createObjectMapper();
+                SimpleModule module = new SimpleModule();
+                module.addDeserializer(RaoResult.class, new RaoResultDeserializer(crac));
+                objectMapper.registerModule(module);
+                return objectMapper.readValue(inputStream, RaoResult.class);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 }

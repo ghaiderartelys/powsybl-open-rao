@@ -12,6 +12,7 @@ import com.powsybl.openrao.commons.Unit;
 import com.powsybl.openrao.data.crac.api.Crac;
 import com.powsybl.openrao.data.crac.api.InstantKind;
 import com.powsybl.iidm.network.TwoSides;
+import com.powsybl.openrao.data.crac.api.commons.TmpFile;
 import com.powsybl.openrao.data.crac.impl.CracImplFactory;
 import com.powsybl.openrao.data.crac.impl.utils.NetworkImportsUtil;
 import org.junit.jupiter.api.Test;
@@ -69,8 +70,8 @@ class JsonLoopFlowThresholdImplImportExportTest {
 
         // import Crac
         Crac importedCrac;
-        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray())) {
-            importedCrac = Crac.read("crac.json", inputStream, network);
+        try (var is = new TmpFile("crac", new ByteArrayInputStream(outputStream.toByteArray()))) {
+            importedCrac = Crac.read("crac.json", is, network);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
